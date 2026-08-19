@@ -1,0 +1,24 @@
+name: ESLink
+version: 0.2.0
+main: com.etherstories.link.ESLinkPlugin
+api-version: "1.21"
+description: ESLink NeoForge — 跨服互通（SQLite + Hub 架构）
+authors: [ EtherStories ]
+softdepend: [ Vault ]
+
+commands:
+  link:
+    description: 打开互通大厅
+    usage: /link
+    aliases: [eslink, "互通"]
+
+permissions:
+  eslink.use:
+    default: true
+  eslink.chest:
+    default: true
+  eslink.admin:
+    default: op
+  eslink.super:
+    description: 删除错误服务器等超级管理
+    default: op

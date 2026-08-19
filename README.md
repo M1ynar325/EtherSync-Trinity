@@ -1,98 +1,97 @@
-# EtherSync-Link（ESLink）
+# EtherSync-Trinity（ESLink 三轮重构）
 
-Paper / Bukkit 跨服互通插件，面向 **EtherStories（ES2）** 与姊妹服（如 SNC）等多服网络。
+> **三轮架构**：独立核心进程 + NeoForge 模组 + Paper 插件，替代旧版共享 MySQL 架构。
 
-## 起因
+EtherSync-Trinity 是 [EtherSync-Link](https://github.com/EVGA2048/EtherSync-Link) 的架构重构版本，目标是构建一个**更安全、更灵活、更易维护**的跨服互通方案。
 
-ES2 即 EtherStories。两台服务器模组大体相近，却不完全一致；不少玩家会在两边来回搭建机械动力产线。
-与其让产线、物资、协作被服际边界切断，不如用插件把两服玩家联动起来——物品、红石、聊天与交易都能跨服对接，生产线也能「跨服接轨」。
+---
 
-## 能做什么
+## 架构概览
 
-各服安装同一插件、共用 MySQL，靠心跳发现在线服务器。入口：`/link`（别名 `/eslink`、`/互通`）。
+```
+┌────────────────────────────────────────────────────────────┐
+│                    Hub（云服务器，公网 IP）                   │
+│  TCP 3307 · 自定义二进制协议 · FRP 可穿透 · 无需 ICP 备案    │
+│  鉴权 → 路由 → 中继转发                                    │
+│  SQLite（仅存元数据：服务器列表、节点配对、注册表缓存、市场挂单）│
+└──────────────────────┬─────────────────────────────────────┘
+                       │ TCP 长连接
+          ┌────────────┼────────────┐
+          ▼            ▼            ▼
+   eslink-core    eslink-mod   eslink-plugin
+   （独立进程）   （NeoForge）   （Paper，可选）
+   零 MC 依赖     方块/GUI      向后兼容
+```
+
+### 三层项目
+
+| 模块 | 语言 | 职责 | 更新方式 |
+|------|------|------|----------|
+| **eslink-core** | Kotlin | Hub 通信协议、物品序列化（ESN6）、本地 SQLite 存储 | 重启进程（0.5 秒） |
+| **eslink-mod** | Kotlin | NeoForge 方块、GUI、Capability、薄桥接层 | DCEVM 热加载（秒级） |
+| **eslink-plugin** | Java | Paper 适配、箱子/红石节点、指令、GUI（向后兼容） | DCEVM 热加载（秒级） |
+
+### 关键设计决策
+
+1. **不用共享 MySQL**：安全模型从根本上坏了，公开发布不可行
+2. **不用 HTTPS**：FRP 要求 HTTP 隧道必须 ICP 备案，中国大陆大部分服主没有
+3. **Hub 不存储传输数据**：只做管道，物品数据不过 Hub 的磁盘
+4. **UUID 标识节点**：替代坐标，解决 Sable/Aeronautics 移动结构下坐标映射失效
+5. **core 独立进程**：支持热更新，可用任何 JVM 语言
+6. **插件和模组共享 core**：混合端下只有一个 Hub 连接，节点可跨类型配对
+7. **序列化只保留 ESN6**：砍掉旧格式兼容代码，减少维护负担
+
+---
+
+## 当前状态
+
+> 🔧 **重构进行中** — 从旧版 Paper 插件向三轮架构迁移
+
+| 阶段 | 进度 |
+|------|------|
+| ✅ 仓库 fork 与重命名 | 完成 |
+| ✅ 第一步：eslink-core 模型层提取 | 完成 |
+| ✅ 第二步：eslink-core 存储层（SQLite） | 完成 |
+| ✅ 第三步：eslink-core 协议层（TCP 二进制帧） | 完成 |
+| ⬜ 第四步：序列化层拆分（ESN6 进入 mod） | 待开始 |
+| ⬜ 第五步：eslink-plugin 适配 core 进程 | 待开始 |
+| ⬜ 第六步：eslink-mod（NeoForge 原生） | 待开始 |
+
+---
+
+## 原版功能（继承自 EtherSync-Link）
+
+当前仓库仍保留完整的旧版 Paper 插件代码，支持以下功能：
 
 | 能力 | 说明 |
 |------|------|
 | **互通大厅** | GUI 查看各服状态；跨服上架 / 购买物品（可选 Vault 经济与税率） |
 | **TX / RX 运输箱** | 配对发送箱与接收箱，按扫描周期经队列把物品运到对端服 |
-| **跨服红石 IO** | 默认事件时间戳回放：电平变化写入 `link_io_events`，接收端按原间隔还原。状态轮询备份见 `IoNet.java.state_version` |
+| **跨服红石 IO** | 事件时间戳回放：电平变化写入 `link_io_events`，接收端按原间隔还原 |
 | **跨服聊天** | 本服 / 全服频道、私聊、屏蔽；可附带物品展示 |
 | **通知与运维** | 上架广播、建箱提醒、`/link diag` 诊断、说明书、超级管理清理脏数据等 |
 
-运输箱适合产线：每轮多送几组，路上积压满了会暂停，而不是实时管道。纸箱 / 潜影盒等重物可先倒计时再发。
-
-## 环境要求
-
-- Java 21
-- Paper（或兼容实现）**1.21+**（`api-version: 1.21`）
-- **MySQL**（各服指向同一库）
-- 可选：`Vault`（经济）、`ES2UniPlugin`（如税账户等联动）
-
-## 快速配置
-
-1. 将构建产物放入各服 `plugins/`，启动一次生成 `plugins/ESLink/config.yml`。
-2. 填写 MySQL，并为每服设置唯一 `server.code`（仅字母数字，玩家界面不显示）以及展示用 `name` / `blurb` / `icon` / `color`。
-3. 重载：`/link reload`（需 `eslink.admin`）。
-
-配置要点见默认 `config.yml` 注释，例如：
-
-- `chest.*`：每轮组数、队列上限、重物延迟、容器收发策略
-- `io.*`：红石总开关与过期判定
-- `trade.*`：交易开关、税率、税入账账户
-- `chat.*`：跨服聊天与刷屏提醒
-
-新版本会自动补缺失配置键，不会覆盖你已填过的值。
-
-## 常用指令
-
-| 指令 | 作用 |
-|------|------|
-| `/link` | 打开互通大厅 |
-| `/link chest` | 运输箱菜单 |
-| `/link tx` / `/link rx` | 设置发送 / 接收箱 |
-| `/link io` | 红石控制器菜单 |
-| `/link settings` | 设置 |
-| `/link chat` | 聊天相关 |
-| `/link msg <玩家> <内容>` | 私聊 |
-| `/link help` | 说明书 |
-| `/link diag` | 容器/组件/快照诊断 |
-| `/link diag retry` | 重跑容器自检 |
-| `/link diag io` | 红石诊断 |
-| `/link transport on\|off` | 全局运输急停 |
-| `/link component block\|unblock\|list <id>` | 禁用/恢复数据组件 |
-| `/link cleanitem` | 清除背包/末影箱里的 ESLink 占位标识 |
-| `/link log clear` | 清空日志 |
-| `/link reload` | 重载配置并重连 MySQL |
-
-权限：`eslink.use`、`eslink.chest`（默认开放），`eslink.admin` / `eslink.super`（默认 OP）。
-管理指令（`reload`、`transport`、`component`、`diag retry`）需 `eslink.admin`。
-
-## 物品跨服说明
-
-- 原版物品按 Bukkit/Paper 数据完整传输。
-- 模组物品以 namespaced key 为准，两端需安装相同模组。
-- 所有非原版物品优先使用 NBT 序列化，避免 `STREAM_CODEC` 注册表数字 ID 在不同服间错位。
-- Create 纸箱、潜影盒等容器按内含拆包传输；对端缺失的子物品会单独退回，其余照常送达。
-- 每批物品带 SHA-256 行级/批次级校验；校验失败会整批 quarantine，不会投递给玩家。
-- 对端缺失附魔/属性时，默认 `deliver`：物品送达并打标记，带回原服可恢复；`chest.unknown-extra: refuse` 则直接退回。
-- 旧版占位标识可用 `/link cleanitem` 清除。
+---
 
 ## 构建
+
+### 旧版插件（当前可用）
 
 ```bash
 mvn -q package
 ```
+产物：`target/ESLink-<version>.jar`
 
-产物：`target/ESLink-<version>.jar`（同时复制到 `dist/`）。
+### eslink-core（重构中）
 
-## 技术栈
+```bash
+cd eslink-core
+mvn -q package
+```
+产物：`eslink-core/target/eslink-core-<version>.jar`
 
-- Paper API 1.21
-- HikariCP + MySQL Connector/J
-- 可选 VaultAPI
-
-当前版本见 `pom.xml` / `plugin.yml`。
+---
 
 ## 许可证
 
-见仓库根目录 [LICENSE](LICENSE)。
+[LICENSE](LICENSE)

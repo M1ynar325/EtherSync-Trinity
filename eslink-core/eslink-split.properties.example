@@ -1,0 +1,20 @@
+# ESLink ESN6 容器拆包配置
+# 复制为 eslink-split.properties 后按需修改
+
+# 总开关：是否启用 ESN6 容器拆包（默认 false）
+split.enabled=false
+
+# 白名单：逗号分隔，支持末尾 * 通配符
+# 例如 minecraft:shulker_box,minecraft:bundle,create:*
+# 白名单之外的容器一律走 ESN1 整包 NBT
+split.whitelist=minecraft:shulker_box,minecraft:bundle,create:*
+
+# 单个容器最多拆出多少个内含物品（协议硬上限 81）
+split.max_inner_items=81
+
+# ESN6 序列化后总大小上限（字节，协议硬上限 524288 = 512 KB）
+split.max_total_size_bytes=524288
+
+# 熔断器：同一容器类型连续失败 N 次后自动禁用 ESN6，冷却后重试
+split.circuit_breaker.cooldown_seconds=300
+split.circuit_breaker.max_failures=3
