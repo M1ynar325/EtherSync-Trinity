@@ -193,8 +193,93 @@ public final class ESLinkPlugin extends JavaPlugin {
             core.connectHub(hubHost, hubPort, serverCode(), key.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             getLogger().info("已连接到 Hub: " + hubHost + ":" + hubPort);
             registerNodeHandlers();
-            // 延迟请求节点同步（等对端也连接完成）
-            Bukkit.getScheduler().runTaskLater(this, () -> core.sendNodeSync(), 60L);
+            registerHubServerListener();
+            // 延迟请求节点同步和服务器列表（等对端也连接完成）
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                core.sendNodeSync();
+                requestServerList();
+            }, 60L);
+        }
+    }
+
+    private void registerHubServerListener() {
+        if (core == null) return;
+        core.addHubListener(new CoreBridge.HubListener() {
+            @Override
+            public void onHubConnected() {
+                // 连接成功后请求服务器列表
+                requestServerList();
+            }
+            @Override
+            public void onHubPacket(com.etherstories.eslink.core.protocol.Frame.Packet packet) {
+                if (packet.getType() == com.etherstories.eslink.core.protocol.Frame.Type.SERVER_LIST_RESP) {
+                    handleServerListResp(packet.getPayload());
+                }
+                if (packet.getType() == com.etherstories.eslink.core.protocol.Frame.Type.SERVER_HELLO) {
+                    handleServerHello(packet.getPayload());
+                }
+            }
+        });
+    }
+
+    private void requestServerList() {
+        if (core == null || !core.isHubConnected()) return;
+        try {
+            // 发送 SERVER_LIST 请求到 Hub
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            java.io.DataOutputStream dos = new java.io.DataOutputStream(bos);
+            byte[] targetBytes = "HUB".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            dos.writeByte(targetBytes.length);
+            dos.write(targetBytes);
+            dos.flush();
+            com.etherstories.eslink.core.protocol.Frame.Packet packet = new com.etherstories.eslink.core.protocol.Frame.Packet(
+                com.etherstories.eslink.core.protocol.Frame.Type.SERVER_LIST,
+                bos.toByteArray(),
+                0,
+                new byte[com.etherstories.eslink.core.protocol.Frame.HMAC_SIZE]
+            );
+            core.hubClient().send(packet);
+        } catch (Exception e) {
+            getLogger().warning("请求服务器列表失败: " + e.getMessage());
+        }
+    }
+
+    private void handleServerListResp(byte[] payload) {
+        try {
+            java.io.DataInputStream dis = new java.io.DataInputStream(new java.io.ByteArrayInputStream(payload));
+            // Hub 返回的格式: [serverCount: 2B][codeLen: 1B][code]... (无路由前缀)
+            int serverCount = dis.readUnsignedShort();
+            for (int i = 0; i < serverCount; i++) {
+                int codeLen = dis.readByte() & 0xFF;
+                byte[] codeBytes = new byte[codeLen];
+                dis.readFully(codeBytes);
+                String code = new String(codeBytes, java.nio.charset.StandardCharsets.UTF_8);
+                if (!code.equals(serverCode())) {
+                    // 将对端服务器加入缓存，这样互通大厅就能看到
+                    serverCache.putIfAbsent(code.toUpperCase(java.util.Locale.ROOT), 
+                        new Models.ServerRow(code, prettyName(code), "", "LIGHT_BLUE", "TERRACOTTA", System.currentTimeMillis(), System.currentTimeMillis()));
+                }
+            }
+            getLogger().info("从 Hub 获取到 " + serverCount + " 个服务器");
+        } catch (Exception e) {
+            getLogger().warning("解析服务器列表失败: " + e.getMessage());
+        }
+    }
+
+    private void handleServerHello(byte[] payload) {
+        try {
+            // Hub 广播的 SERVER_HELLO: [fromLen][fromCode][serverName]
+            java.io.DataInputStream dis = new java.io.DataInputStream(new java.io.ByteArrayInputStream(payload));
+            int fromLen = dis.readByte() & 0xFF;
+            byte[] fromBytes = new byte[fromLen];
+            dis.readFully(fromBytes);
+            String fromCode = new String(fromBytes, java.nio.charset.StandardCharsets.UTF_8);
+            if (!fromCode.equals(serverCode())) {
+                serverCache.putIfAbsent(fromCode.toUpperCase(java.util.Locale.ROOT),
+                    new Models.ServerRow(fromCode, prettyName(fromCode), "", "LIGHT_BLUE", "TERRACOTTA", System.currentTimeMillis(), System.currentTimeMillis()));
+            }
+        } catch (Exception e) {
+            // ignore
         }
     }
 
