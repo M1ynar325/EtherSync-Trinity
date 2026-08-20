@@ -31,6 +31,7 @@ public final class LinkGui {
             }
             List<Models.ServerRow> sv = servers;
             plugin.rememberServers(sv);
+            LinkLog.add("I 大厅服务器: " + sv.size() + " 个");
             sync(() -> {
                 if (!p.isOnline()) return;
                 LinkHolder h = new LinkHolder("home");
@@ -305,6 +306,7 @@ public final class LinkGui {
             }
             List<Models.ServerRow> sv = servers;
             plugin.rememberServers(sv);
+            try { LinkLog.add("I 服务器列表: " + sv.size() + " 个 (本地" + plugin.store().servers().size() + " + 缓存" + plugin.serverCache().size() + ")"); } catch (Exception ignored) {}
             sync(() -> {
                 if (!p.isOnline()) return;
                 LinkHolder h = new LinkHolder("pair-server");

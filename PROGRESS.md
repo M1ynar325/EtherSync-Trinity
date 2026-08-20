@@ -15,7 +15,7 @@
 
 ---
 
-## 当前阶段：Step 1-4 完成
+## 当前阶段：Step 1-5 联调中（暂停）
 
 ### ✅ 已完成
 
@@ -31,7 +31,9 @@
 | **Step 3.5: Hub 服务端** | `eslink-core/src/main/kotlin/.../protocol/HubServer.kt` | 鉴权 + 路由 + 中继转发（TCP 3307） |
 | **Step 4: 序列化层** | `eslink-core/src/main/kotlin/.../serialization/` | ESN1（通用整包）+ ESN6（可选白名单拆包），配置文件 + 熔断器 |
 | **Step 5: 插件适配（基础）** | `eslink-plugin/` | 新建模块，CoreBridge 桥接层，Store 从 MySQL 迁移到 SQLite，ESLinkPlugin 集成 Hub 连接 |
-| **Step 5: 插件适配（深入）** | `eslink-plugin/src/main/java/` | ItemCodec 增加 ESN1/ESN6 编解码，ChestNet/ChatBridge/AlertNet 增加 Hub 直传路径，CoreBridge 消息路由 |
+| **Step 5: 插件适配（深入）** | `eslink-plugin/src/main/java/` | ItemCodec ESN1/ESN6，ChestNet/ChatBridge/AlertNet/IoNet Hub 直传路径，CoreBridge 消息路由 |
+| **Step 5: 联调修复** | 多文件 | SQLite 连接生命周期（75 处）、MySQL→SQLite 语法迁移、Hub 消息路由、编码修复、HotswapAgent 部署 |
+| **Step 5: 节点发现 (部分)** | ESLinkPlugin/LinkGui/CoreBridge | 节点同步协议（MSG_NODE_SYNC/SYNC_RESP/REGISTER/UNREGISTER）、服务器列表 Hub 交换 |
 
 ### ⬜ 待完成
 
@@ -346,6 +348,30 @@ D:\ESLink_neoforged\EtherSync-Trinity\
 | eslink-plugin (旧版) | Java | Maven | PaperAPI, HikariCP, MySQL, Vault |
 
 ---
+
+---
+
+## 已知问题（2025-04 联调）
+
+### 已验证通过
+- ✅ 聊天跨服互通（ChatBridge Hub 广播）
+- ✅ 服务器列表 Hub 交换（"从 Hub 获取到 N 个服务器"）
+- ✅ 节点同步协议（MSG_NODE_SYNC/SYNC_RESP 每 30 秒交换）
+- ✅ SQLite 稳定性（连接生命周期修复后无 database connection closed）
+
+### 未生效（需排查）
+- ❌ 互通大厅仍然看不到对方服务器（openPairServers 合并 serverCache 代码已写但未生效）
+- ❌ 箱子配对界面看不到对方节点（idleChests 合并 remoteChests 代码已写但未生效）
+- ❌ 红石配对（IoNet 创建/删除广播未接入 MSG_NODE_REGISTER）
+
+### 根因分析
+1. **架构问题**：旧版依赖共享 MySQL 实现服务器发现 + 节点列表 + 队列传输。迁移到 SQLite + Hub 后，每个服的 SQLite 只有本地数据。
+2. **Hub 替代方案**：已实现 MSG_NODE_* 协议（节点同步）+ SERVER_LIST 协议（服务器发现），但 LinkGui 的 GUI 界面未正确合并远程数据。
+3. **最可能原因**：LinkGui 中 `openPairServers` 和 `idleChests` 的修改未正确编译进 JAR，或代码路径未被触发。
+
+### 待重试
+- 验证 JAR 中 LinkGui.class 是否包含合并逻辑
+- 添加更直接的调试日志确认 openPairServers 代码路径
 
 ## 下一轮对话建议开场
 
