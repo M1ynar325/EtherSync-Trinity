@@ -9,3 +9,4 @@ dist/
 
 # Test artifacts
 eslink-split-test.properties
+*.jar

@@ -75,11 +75,11 @@ public final class Store {
                       amount INT NOT NULL,
                       price REAL NOT NULL,
                       created INTEGER NOT NULL,
-                      blob_b64 TEXT,
-                      CREATE INDEX IF NOT EXISTS idx_server (server_code),
-                      CREATE INDEX IF NOT EXISTS idx_seller (seller_uuid)
-                    ) 
-                    """);
+                      blob_b64 TEXT
+                    ) """
+                    );
+            s.executeUpdate("CREATE INDEX IF NOT EXISTS idx_server ON link_listings(server_code)");
+            s.executeUpdate("CREATE INDEX IF NOT EXISTS idx_seller ON link_listings(seller_uuid)");
             s.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS link_queue (
                       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,26 +93,26 @@ public final class Store {
                       blob_b64 TEXT,
                       created INTEGER NOT NULL,
                       return_slots INT NOT NULL DEFAULT 1,
-                      batch_id VARTEXT NULL,
+                      batch_id TEXT NULL,
                       parent_id INTEGER NULL,
                       row_index INT NULL,
-                      row_sha256 TEXT NULL,
-                      CREATE INDEX IF NOT EXISTS idx_status (status, to_code),
-                      CREATE INDEX IF NOT EXISTS idx_batch (batch_id)
-                    ) 
-                    """);
+                      row_sha256 TEXT NULL
+                    ) """
+                    );
+            s.executeUpdate("CREATE INDEX IF NOT EXISTS idx_status ON link_queue(status, to_code)");
+            s.executeUpdate("CREATE INDEX IF NOT EXISTS idx_batch ON link_queue(batch_id)");
             s.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS link_batches (
-                      batch_id VARTEXT PRIMARY KEY,
+                      batch_id TEXT PRIMARY KEY,
                       from_code TEXT NOT NULL,
                       to_code TEXT NOT NULL,
                       item_count INT NOT NULL,
                       payload_sha256 TEXT NOT NULL,
                       status TEXT NOT NULL DEFAULT 'open',
-                      created INTEGER NOT NULL,
-                      CREATE INDEX IF NOT EXISTS idx_batches_status (status, created)
-                    ) 
-                    """);
+                      created INTEGER NOT NULL
+                    ) """
+                    );
+            s.executeUpdate("CREATE INDEX IF NOT EXISTS idx_batches_status ON link_batches(status, created)");
             s.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS link_item_escrow (
                       token TEXT PRIMARY KEY,
@@ -121,10 +121,10 @@ public final class Store {
                       status TEXT NOT NULL DEFAULT 'active',
                       claim_id TEXT NULL,
                       claimed_at INTEGER NOT NULL DEFAULT 0,
-                      created INTEGER NOT NULL,
-                      CREATE INDEX IF NOT EXISTS idx_escrow_status (status, claimed_at)
-                    ) 
-                    """);
+                      created INTEGER NOT NULL
+                    ) """
+                    );
+            s.executeUpdate("CREATE INDEX IF NOT EXISTS idx_escrow_status ON link_item_escrow(status, claimed_at)");
             s.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS link_chests (
                       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -158,10 +158,10 @@ public final class Store {
                       item_key TEXT NULL,
                       item_name TEXT NULL,
                       item_amount INT NULL,
-                      item_b64 TEXT NULL,
-                      CREATE INDEX IF NOT EXISTS idx_id (id)
-                    ) 
-                    """);
+                      item_b64 TEXT NULL
+                    ) """
+                    );
+            s.executeUpdate("CREATE INDEX IF NOT EXISTS idx_id ON link_chat(id)");
             try { s.executeUpdate("ALTER TABLE link_chat ADD COLUMN item_key TEXT NULL"); } catch (Exception ignored) {}
             try { s.executeUpdate("ALTER TABLE link_chat ADD COLUMN item_name TEXT NULL"); } catch (Exception ignored) {}
             try { s.executeUpdate("ALTER TABLE link_chat ADD COLUMN item_amount INT NULL"); } catch (Exception ignored) {}
@@ -194,11 +194,11 @@ public final class Store {
             try { s.executeUpdate("UPDATE link_io SET level=15 WHERE powered<>0 AND level=0"); } catch (Exception ignored) {}
             try { s.executeUpdate("ALTER TABLE link_queue ADD COLUMN nested_keys TEXT NULL"); } catch (Exception ignored) {}
             try { s.executeUpdate("ALTER TABLE link_queue ADD COLUMN return_slots INT NOT NULL DEFAULT 1"); } catch (Exception ignored) {}
-            try { s.executeUpdate("ALTER TABLE link_queue ADD COLUMN batch_id VARTEXT NULL"); } catch (Exception ignored) {}
+            try { s.executeUpdate("ALTER TABLE link_queue ADD COLUMN batch_id TEXT NULL"); } catch (Exception ignored) {}
             try { s.executeUpdate("ALTER TABLE link_queue ADD COLUMN parent_id INTEGER NULL"); } catch (Exception ignored) {}
             try { s.executeUpdate("ALTER TABLE link_queue ADD COLUMN row_index INT NULL"); } catch (Exception ignored) {}
             try { s.executeUpdate("ALTER TABLE link_queue ADD COLUMN row_sha256 TEXT NULL"); } catch (Exception ignored) {}
-            try { s.executeUpdate("ALTER TABLE link_queue ADD CREATE INDEX IF NOT EXISTS idx_batch (batch_id)"); } catch (Exception ignored) {}
+            try { s.executeUpdate("CREATE INDEX IF NOT EXISTS idx_batch ON link_queue(batch_id)"); } catch (Exception ignored) {}
             try { s.executeUpdate("ALTER TABLE link_chests ADD COLUMN item_filter TEXT NOT NULL DEFAULT ''"); } catch (Exception ignored) {}
             try { s.executeUpdate("ALTER TABLE link_chests ADD COLUMN bounce_id INT NOT NULL DEFAULT 0"); } catch (Exception ignored) {}
             try { s.executeUpdate("ALTER TABLE link_chests ADD COLUMN sign_face TEXT NULL"); } catch (Exception ignored) {}
@@ -210,10 +210,10 @@ public final class Store {
                       kind TEXT NOT NULL,
                       node_id INT NOT NULL,
                       created INTEGER NOT NULL,
-                      PRIMARY KEY (player_uuid, kind, node_id),
-                      CREATE INDEX IF NOT EXISTS idx_watch_node (kind, node_id)
-                    ) 
-                    """);
+                      PRIMARY KEY (player_uuid, kind, node_id)
+                    ) """
+                    );
+            s.executeUpdate("CREATE INDEX IF NOT EXISTS idx_watch_node ON link_watch(kind, node_id)");
             fillSerials(c, "link_chests");
             fillSerials(c, "link_io");
             s.executeUpdate("""
@@ -224,10 +224,10 @@ public final class Store {
                       from_name TEXT NOT NULL,
                       player_name TEXT NOT NULL,
                       detail TEXT NOT NULL,
-                      created INTEGER NOT NULL,
-                      CREATE INDEX IF NOT EXISTS idx_alert_id (id)
-                    ) 
-                    """);
+                      created INTEGER NOT NULL
+                    ) """
+                    );
+            s.executeUpdate("CREATE INDEX IF NOT EXISTS idx_alert_id ON link_alerts(id)");
             s.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS link_registry (
                       server_code TEXT PRIMARY KEY,
@@ -242,36 +242,37 @@ public final class Store {
                       id INTEGER PRIMARY KEY AUTOINCREMENT,
                       pair_code TEXT NOT NULL,
                       level INTEGER NOT NULL,
-                      event_time_ms INTEGER NOT NULL,
-                      -- INDEX idx_pair_time (pair_code, id) (SQLite: created separately)
+                      event_time_ms INTEGER NOT NULL
                     ) 
                     """);
         }
     }
 
     public void heartbeat(String code, String name, String blurb, String color, String icon) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      INSERT INTO link_servers (code, display_name, blurb, color, icon, last_heartbeat)
-                     VALUES (?,?,?,?,?, FLOOR(UNIX_TIMESTAMP(NOW(3))*1000))
-                     ON DUPLICATE KEY UPDATE display_name=VALUES(display_name),
-                     blurb=VALUES(blurb), color=VALUES(color), icon=VALUES(icon),
-                     last_heartbeat=FLOOR(UNIX_TIMESTAMP(NOW(3))*1000)
+                     VALUES (?,?,?,?,?,?)
+                     ON CONFLICT(code) DO UPDATE SET
+                     display_name=excluded.display_name,
+                     blurb=excluded.blurb, color=excluded.color, icon=excluded.icon,
+                     last_heartbeat=excluded.last_heartbeat
                      """)) {
             ps.setString(1, code);
             ps.setString(2, name);
             ps.setString(3, blurb == null ? "" : blurb);
             ps.setString(4, color == null || color.isBlank() ? "LIGHT_BLUE" : color);
             ps.setString(5, icon == null || icon.isBlank() ? "TERRACOTTA" : icon);
+            ps.setLong(6, System.currentTimeMillis());
             ps.executeUpdate();
         }
     }
 
     public List<Models.ServerRow> servers() throws Exception {
         List<Models.ServerRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
-                     "SELECT code, display_name, blurb, color, icon, last_heartbeat, FLOOR(UNIX_TIMESTAMP(NOW(3))*1000) AS db_now FROM link_servers")) {
+                     "SELECT code, display_name, blurb, color, icon, last_heartbeat, CAST(strftime('%s','now') AS INTEGER)*1000 AS db_now FROM link_servers")) {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 out.add(new Models.ServerRow(
@@ -287,12 +288,13 @@ public final class Store {
 
     /** 各服的物品清单。17000 多个注册名，压缩后几十 KB，靠 digest 判断要不要重传。 */
     public void publishRegistry(String code, String digest, int count, byte[] payload) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      INSERT INTO link_registry (server_code, digest, item_count, payload, updated)
                      VALUES (?,?,?,?,?)
-                     ON DUPLICATE KEY UPDATE digest=VALUES(digest), item_count=VALUES(item_count),
-                       payload=VALUES(payload), updated=VALUES(updated)
+                     ON CONFLICT(server_code) DO UPDATE SET
+                       digest=excluded.digest, item_count=excluded.item_count,
+                       payload=excluded.payload, updated=excluded.updated
                      """)) {
             ps.setString(1, code);
             ps.setString(2, digest);
@@ -306,7 +308,7 @@ public final class Store {
     /** 只读 digest，用来判断本地缓存过没过期，不拉几十 KB 的正文。 */
     public Map<String, String> registryDigests() throws Exception {
         Map<String, String> out = new java.util.HashMap<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("SELECT server_code, digest FROM link_registry")) {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) out.put(rs.getString(1), rs.getString(2));
@@ -315,7 +317,7 @@ public final class Store {
     }
 
     public RegistryRow registryOf(String code) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "SELECT digest, item_count, payload FROM link_registry WHERE server_code=?")) {
             ps.setString(1, code);
@@ -375,7 +377,7 @@ public final class Store {
             SELECT c.id, c.serial, c.pair_code, c.server_code, c.role, c.world, c.x, c.y, c.z,
                    c.owner_uuid, c.owner_name, c.status, c.level, c.updated_ms, c.logic,
                    p.serial AS peer_serial, p.level AS peer_level, p.updated_ms AS peer_updated_ms,
-                   p.server_code AS peer_server, FLOOR(UNIX_TIMESTAMP(NOW(3))*1000) AS db_now
+                   p.server_code AS peer_server, CAST(strftime('%s','now') AS INTEGER)*1000 AS db_now
             FROM link_io c
             LEFT JOIN link_io p ON p.pair_code IS NOT NULL AND p.pair_code<>'' AND p.pair_code=c.pair_code AND p.id<>c.id
             """;
@@ -392,7 +394,7 @@ public final class Store {
     public long insertListing(UUID seller, String sellerName, String server,
                               String itemKey, String itemName, int amount, double price, String b64,
                               String nestedKeys) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      INSERT INTO link_listings (seller_uuid,seller_name,server_code,item_key,item_name,amount,price,created,blob_b64,nested_keys)
                      VALUES (?,?,?,?,?,?,?,?,?,?)
@@ -436,7 +438,7 @@ public final class Store {
         args.add(limit);
         args.add(offset);
         List<Models.Listing> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(sql.toString())) {
             for (int i = 0; i < args.size(); i++) {
                 Object a = args.get(i);
@@ -453,7 +455,7 @@ public final class Store {
     }
 
     public Models.Listing listing(long id) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      SELECT id,seller_uuid,seller_name,server_code,item_key,item_name,amount,price,created,blob_b64,nested_keys
                      FROM link_listings WHERE id=?
@@ -465,7 +467,7 @@ public final class Store {
     }
 
     public boolean deleteListing(long id) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("DELETE FROM link_listings WHERE id=?")) {
             ps.setLong(1, id);
             return ps.executeUpdate() > 0;
@@ -473,7 +475,7 @@ public final class Store {
     }
 
     public int deleteListingsOf(String server, UUID uuid) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "DELETE FROM link_listings WHERE server_code=? AND seller_uuid=?")) {
             ps.setString(1, server);
@@ -500,10 +502,10 @@ public final class Store {
     }
 
     public void setBan(String server, UUID uuid, String reason) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      INSERT INTO link_bans (server_code, player_uuid, reason) VALUES (?,?,?)
-                     ON DUPLICATE KEY UPDATE reason=VALUES(reason)
+                     ON CONFLICT(server_code, player_uuid) DO UPDATE SET reason=excluded.reason
                      """)) {
             ps.setString(1, server);
             ps.setString(2, uuid.toString());
@@ -513,7 +515,7 @@ public final class Store {
     }
 
     public void unban(String server, UUID uuid) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "DELETE FROM link_bans WHERE server_code=? AND player_uuid=?")) {
             ps.setString(1, server);
@@ -523,7 +525,7 @@ public final class Store {
     }
 
     public boolean banned(String server, UUID uuid) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "SELECT 1 FROM link_bans WHERE server_code=? AND player_uuid=?")) {
             ps.setString(1, server);
@@ -534,7 +536,7 @@ public final class Store {
 
     public int insertChest(String pair, String server, String role, String world, int x, int y, int z,
                            UUID owner, String ownerName) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      INSERT INTO link_chests (pair_code,server_code,role,world,x,y,z,owner_uuid,owner_name,status)
                      VALUES (?,?,?,?,?,?,?,?,?, 'idle')
@@ -558,7 +560,7 @@ public final class Store {
     }
 
     private void assignSerial(String table, int id) {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("UPDATE " + table + " SET serial=? WHERE id=?")) {
             ps.setString(1, Units.code(id));
             ps.setInt(2, id);
@@ -579,7 +581,7 @@ public final class Store {
         }
         releaseChestPair(idA);
         releaseChestPair(idB);
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "UPDATE link_chests SET pair_code=?, status='linked' WHERE id IN (?,?)")) {
             ps.setString(1, pairCode);
@@ -590,7 +592,7 @@ public final class Store {
     }
 
     public void setChestFilter(int id, String filter) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("UPDATE link_chests SET item_filter=? WHERE id=?")) {
             ps.setString(1, filter == null ? "" : filter.trim());
             ps.setInt(2, id);
@@ -599,7 +601,7 @@ public final class Store {
     }
 
     public void setListingPrice(long id, double price) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("UPDATE link_listings SET price=? WHERE id=?")) {
             ps.setDouble(1, Math.max(0, price));
             ps.setLong(2, id);
@@ -608,7 +610,7 @@ public final class Store {
     }
 
     public void setChestStatus(int id, String status) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("UPDATE link_chests SET status=? WHERE id=?")) {
             ps.setString(1, status);
             ps.setInt(2, id);
@@ -617,7 +619,7 @@ public final class Store {
     }
 
     public Models.ChestRow chestAt(String server, String world, int x, int y, int z) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      """ + CHEST_SELECT + """
                      WHERE c.server_code=? AND c.world=? AND c.x=? AND c.y=? AND c.z=?
@@ -631,7 +633,7 @@ public final class Store {
     }
 
     public Models.ChestRow chestById(int id) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      """ + CHEST_SELECT + """
                      WHERE c.id=?
@@ -644,7 +646,7 @@ public final class Store {
 
     public List<Models.ChestRow> idleChestsRole(String role) throws Exception {
         List<Models.ChestRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      """ + CHEST_SELECT + """
                      WHERE c.role=? AND (c.pair_code IS NULL OR c.pair_code='')
@@ -658,7 +660,7 @@ public final class Store {
 
     public List<Models.ChestRow> idleChests(String server, String role) throws Exception {
         List<Models.ChestRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      """ + CHEST_SELECT + """
                      WHERE c.server_code=? AND c.role=? AND (c.pair_code IS NULL OR c.pair_code='')
@@ -673,7 +675,7 @@ public final class Store {
 
     public List<Models.ChestRow> chestsOf(UUID owner) throws Exception {
         List<Models.ChestRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(CHEST_SELECT + " WHERE c.owner_uuid=? ORDER BY c.id DESC")) {
             ps.setString(1, owner.toString());
             ResultSet rs = ps.executeQuery();
@@ -685,7 +687,7 @@ public final class Store {
     public void releaseChestPair(int id) throws Exception {
         Models.ChestRow row = chestById(id);
         if (row == null || row.pairCode() == null || row.pairCode().isBlank()) return;
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "UPDATE link_chests SET pair_code=NULL, status='idle' WHERE pair_code=?")) {
             ps.setString(1, row.pairCode());
@@ -695,7 +697,7 @@ public final class Store {
 
     public List<Models.ChestRow> chestsOn(String server) throws Exception {
         List<Models.ChestRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      """ + CHEST_SELECT + """
                      WHERE c.server_code=?
@@ -732,7 +734,7 @@ public final class Store {
     }
 
     public void setSignFace(int id, String face) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("UPDATE link_chests SET sign_face=? WHERE id=?")) {
             if (face == null || face.isBlank()) ps.setNull(1, java.sql.Types.VARCHAR);
             else ps.setString(1, face.trim().toUpperCase());
@@ -742,7 +744,7 @@ public final class Store {
     }
 
     public void setBounceLink(int id, int bounceId) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("UPDATE link_chests SET bounce_id=? WHERE id=?")) {
             ps.setInt(1, Math.max(0, bounceId));
             ps.setInt(2, id);
@@ -756,7 +758,7 @@ public final class Store {
     }
 
     public int bouncePendingOnPair(String pair) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      """
                      SELECT COALESCE(SUM(CASE WHEN status='pending' THEN LEAST(return_slots,9) ELSE 1 END),0)
@@ -770,7 +772,7 @@ public final class Store {
 
     public List<Models.QueueRow> bounceTo(String fromCode) throws Exception {
         List<Models.QueueRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      SELECT id,from_code,to_code,pair_code,item_key,item_name,amount,status,blob_b64,nested_keys
                      FROM link_queue WHERE status IN ('bounce','unknown') AND from_code=? LIMIT 48
@@ -790,7 +792,7 @@ public final class Store {
     }
 
     public Models.ChestRow chestByPairRole(String pair, String server, String role) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      """ + CHEST_SELECT + """
                      WHERE c.pair_code=? AND c.server_code=? AND c.role=?
@@ -804,7 +806,7 @@ public final class Store {
     }
 
     public Models.ChestRow partner(int id, String pair) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      """ + CHEST_SELECT + """
                      WHERE c.pair_code=? AND c.id<>? LIMIT 1
@@ -818,7 +820,7 @@ public final class Store {
 
     public int insertIo(String server, String role, String world, int x, int y, int z,
                         UUID owner, String ownerName) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      INSERT INTO link_io (pair_code,server_code,role,world,x,y,z,owner_uuid,owner_name,status,powered,level)
                      VALUES (NULL,?,?,?,?,?,?,?,?,'idle',0,0)
@@ -848,7 +850,7 @@ public final class Store {
         }
         releaseIoPair(idA);
         releaseIoPair(idB);
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "UPDATE link_io SET pair_code=?, status='linked' WHERE id IN (?,?)")) {
             ps.setString(1, pairCode);
@@ -859,7 +861,7 @@ public final class Store {
     }
 
     public void setIoStatus(int id, String status) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("UPDATE link_io SET status=? WHERE id=?")) {
             ps.setString(1, status);
             ps.setInt(2, id);
@@ -872,7 +874,7 @@ public final class Store {
             case "invert", "full" -> logic;
             default -> "normal";
         };
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("UPDATE link_io SET logic=? WHERE id=?")) {
             ps.setString(1, v);
             ps.setInt(2, id);
@@ -882,9 +884,9 @@ public final class Store {
 
     public void writeIoLevel(int id, int level) throws Exception {
         int lv = Math.max(0, Math.min(15, level));
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
-                     "UPDATE link_io SET level=?, powered=?, updated_ms=FLOOR(UNIX_TIMESTAMP(NOW(3))*1000) WHERE id=?")) {
+                     "UPDATE link_io SET level=?, powered=?, updated_ms=CAST(strftime('%s','now') AS INTEGER)*1000 WHERE id=?")) {
             ps.setInt(1, lv);
             ps.setInt(2, lv > 0 ? 1 : 0);
             ps.setInt(3, id);
@@ -893,7 +895,7 @@ public final class Store {
     }
 
     public Models.IoRow ioAt(String server, String world, int x, int y, int z) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(IO_SELECT +
                      " WHERE c.server_code=? AND c.world=? AND c.x=? AND c.y=? AND c.z=?")) {
             ps.setString(1, server);
@@ -905,7 +907,7 @@ public final class Store {
     }
 
     public Models.IoRow ioById(int id) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(IO_SELECT + " WHERE c.id=?")) {
             ps.setInt(1, id);
             ResultSet rs = ps.executeQuery();
@@ -915,7 +917,7 @@ public final class Store {
 
     public List<Models.IoRow> idleIoRole(String role) throws Exception {
         List<Models.IoRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(IO_SELECT +
                      " WHERE c.role=? AND (c.pair_code IS NULL OR c.pair_code='')")) {
             ps.setString(1, role);
@@ -927,7 +929,7 @@ public final class Store {
 
     public List<Models.IoRow> idleIo(String server, String role) throws Exception {
         List<Models.IoRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(IO_SELECT +
                      " WHERE c.server_code=? AND c.role=? AND (c.pair_code IS NULL OR c.pair_code='')")) {
             ps.setString(1, server);
@@ -940,7 +942,7 @@ public final class Store {
 
     public List<Models.IoRow> ioOf(UUID owner) throws Exception {
         List<Models.IoRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(IO_SELECT + " WHERE c.owner_uuid=? ORDER BY c.id DESC")) {
             ps.setString(1, owner.toString());
             ResultSet rs = ps.executeQuery();
@@ -952,7 +954,7 @@ public final class Store {
     public void releaseIoPair(int id) throws Exception {
         Models.IoRow row = ioById(id);
         if (row == null || row.pairCode() == null || row.pairCode().isBlank()) return;
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "UPDATE link_io SET pair_code=NULL, status='idle' WHERE pair_code=?")) {
             ps.setString(1, row.pairCode());
@@ -962,7 +964,7 @@ public final class Store {
 
     public List<Models.IoRow> ioOn(String server) throws Exception {
         List<Models.IoRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(IO_SELECT + " WHERE c.server_code=?")) {
             ps.setString(1, server);
             ResultSet rs = ps.executeQuery();
@@ -1005,7 +1007,7 @@ public final class Store {
     }
 
     public int pendingOnPair(String pair) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "SELECT COUNT(*) FROM link_queue WHERE pair_code=? AND status='pending'")) {
             ps.setString(1, pair);
@@ -1032,7 +1034,7 @@ public final class Store {
     }
 
     public void insertAlert(String kind, String fromCode, String fromName, String playerName, String detail) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      INSERT INTO link_alerts (kind, from_code, from_name, player_name, detail, created)
                      VALUES (?,?,?,?,?,?)
@@ -1048,7 +1050,7 @@ public final class Store {
     }
 
     public long maxAlertId() throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("SELECT COALESCE(MAX(id),0) FROM link_alerts")) {
             ResultSet rs = ps.executeQuery();
             return rs.next() ? rs.getLong(1) : 0;
@@ -1057,7 +1059,7 @@ public final class Store {
 
     public List<Models.AlertRow> alertsAfter(long afterId, String notFrom, int limit) throws Exception {
         List<Models.AlertRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      SELECT id, kind, from_code, from_name, player_name, detail, created
                      FROM link_alerts WHERE id>? AND from_code<>? ORDER BY id ASC LIMIT ?
@@ -1077,7 +1079,7 @@ public final class Store {
     }
 
     public void pruneAlerts(long olderThanMs) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("DELETE FROM link_alerts WHERE created<?")) {
             ps.setLong(1, System.currentTimeMillis() - olderThanMs);
             ps.executeUpdate();
@@ -1178,7 +1180,7 @@ public final class Store {
                         String b64, String nestedKeys, int returnSlots, String batchId, Long parentId) throws Exception {
         String useBatch = batchId == null || batchId.isBlank() ? java.util.UUID.randomUUID().toString() : batchId;
         enqueueBatch(from, to, pair, List.of(new BatchItem(itemKey, itemName, amount, b64, nestedKeys, returnSlots)), useBatch);
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "SELECT MAX(id) FROM link_queue WHERE batch_id=?")) {
             ps.setString(1, useBatch);
@@ -1212,7 +1214,7 @@ public final class Store {
     /** 校验 to_code 下所有 open 状态的批次；不通过就整批 quarantine。 */
     public void verifyBatches(String toCode) throws Exception {
         List<String> batchIds = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      SELECT DISTINCT q.batch_id
                      FROM link_queue q JOIN link_batches b ON b.batch_id=q.batch_id
@@ -1232,7 +1234,7 @@ public final class Store {
     private void verifyBatch(String batchId) throws Exception {
         int count;
         String batchSha;
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "SELECT item_count,payload_sha256 FROM link_batches WHERE batch_id=?")) {
             ps.setString(1, batchId);
@@ -1242,7 +1244,7 @@ public final class Store {
             batchSha = r.getString(2);
         }
         List<BatchRow> rows = new ArrayList<>();
-        try (Connection c = conn;
+        try (
              PreparedStatement ps = c.prepareStatement("""
                      SELECT id,row_index,row_sha256,blob_b64,item_key,amount,nested_keys
                      FROM link_queue WHERE batch_id=? ORDER BY row_index,id
@@ -1271,36 +1273,34 @@ public final class Store {
         if (ok) {
             ok = batchSha256(shas).equalsIgnoreCase(batchSha == null ? "" : batchSha.trim());
         }
-        try (Connection c = conn) {
-            c.setAutoCommit(false);
-            try {
+        c.setAutoCommit(false);
+        try {
+            try (PreparedStatement ps = c.prepareStatement(
+                    "UPDATE link_batches SET status=? WHERE batch_id=?")) {
+                ps.setString(1, ok ? "ok" : "quarantine");
+                ps.setString(2, batchId);
+                ps.executeUpdate();
+            }
+            if (!ok) {
                 try (PreparedStatement ps = c.prepareStatement(
-                        "UPDATE link_batches SET status=? WHERE batch_id=?")) {
-                    ps.setString(1, ok ? "ok" : "quarantine");
-                    ps.setString(2, batchId);
+                        "UPDATE link_queue SET status='quarantine' WHERE batch_id=? AND status='pending'")) {
+                    ps.setString(1, batchId);
                     ps.executeUpdate();
                 }
-                if (!ok) {
-                    try (PreparedStatement ps = c.prepareStatement(
-                            "UPDATE link_queue SET status='quarantine' WHERE batch_id=? AND status='pending'")) {
-                        ps.setString(1, batchId);
-                        ps.executeUpdate();
-                    }
-                }
-                c.commit();
-            } catch (Exception e) {
-                try { c.rollback(); } catch (Exception ignored) {}
-                throw e;
-            } finally {
-                try { c.setAutoCommit(true); } catch (Exception ignored) {}
             }
+            c.commit();
+        } catch (Exception e) {
+            try { c.rollback(); } catch (Exception ignored) {}
+            throw e;
+        } finally {
+            try { c.setAutoCommit(true); } catch (Exception ignored) {}
         }
     }
 
     public List<Models.QueueRow> pendingTo(String toCode) throws Exception {
         verifyBatches(toCode);
         List<Models.QueueRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      SELECT id,from_code,to_code,pair_code,item_key,item_name,amount,status,blob_b64,nested_keys
                      FROM link_queue q
@@ -1325,7 +1325,7 @@ public final class Store {
     }
 
     public void setQueueStatus(long id, String status) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("UPDATE link_queue SET status=? WHERE id=?")) {
             ps.setString(1, status);
             ps.setLong(2, id);
@@ -1431,7 +1431,7 @@ public final class Store {
 
     public void finishEscrows(EscrowClaim claim, boolean delivered) throws Exception {
         if (claim == null || claim.claimId() == null || claim.claimId().isBlank()) return;
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(delivered
                      ? """
                        UPDATE link_item_escrow
@@ -1455,7 +1455,7 @@ public final class Store {
 
     public void insertChat(String from, String fromName, UUID uuid, String name, String message,
                            String itemKey, String itemName, Integer itemAmount, String itemB64) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      INSERT INTO link_chat (from_code, from_name, player_uuid, player_name, message, created,
                        item_key, item_name, item_amount, item_b64)
@@ -1477,7 +1477,7 @@ public final class Store {
     }
 
     public long maxChatId() throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("SELECT COALESCE(MAX(id),0) FROM link_chat")) {
             ResultSet rs = ps.executeQuery();
             return rs.next() ? rs.getLong(1) : 0;
@@ -1486,7 +1486,7 @@ public final class Store {
 
     public List<Models.ChatRow> chatAfter(long afterId, String notFrom, int limit) throws Exception {
         List<Models.ChatRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      SELECT id, from_code, from_name, player_uuid, player_name, message, item_key, item_name, item_amount, item_b64
                      FROM link_chat WHERE id>? AND from_code<>? ORDER BY id ASC LIMIT ?
@@ -1515,7 +1515,7 @@ public final class Store {
     }
 
     public void pruneChat(long olderThanMs) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("DELETE FROM link_chat WHERE created<?")) {
             ps.setLong(1, System.currentTimeMillis() - olderThanMs);
             ps.executeUpdate();
@@ -1523,7 +1523,7 @@ public final class Store {
     }
 
     public boolean watching(UUID player, String kind, int nodeId) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "SELECT 1 FROM link_watch WHERE player_uuid=? AND kind=? AND node_id=?")) {
             ps.setString(1, player.toString());
@@ -1536,11 +1536,11 @@ public final class Store {
 
     public void setWatch(UUID player, String name, String kind, int nodeId, boolean on) throws Exception {
         if (on) {
-            try (Connection c = conn;
+            Connection c = conn; try (
                  PreparedStatement ps = c.prepareStatement("""
                          INSERT INTO link_watch (player_uuid, player_name, kind, node_id, created)
                          VALUES (?,?,?,?,?)
-                         ON DUPLICATE KEY UPDATE player_name=VALUES(player_name)
+                         ON CONFLICT(player_uuid, kind, node_id) DO UPDATE SET player_name=excluded.player_name
                          """)) {
                 ps.setString(1, player.toString());
                 ps.setString(2, name == null ? "" : name);
@@ -1551,7 +1551,7 @@ public final class Store {
             }
             return;
         }
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "DELETE FROM link_watch WHERE player_uuid=? AND kind=? AND node_id=?")) {
             ps.setString(1, player.toString());
@@ -1570,7 +1570,7 @@ public final class Store {
                 )))
                 """.formatted(table);
         List<UUID> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, kind);
             ps.setInt(2, nodeId);
@@ -1589,7 +1589,7 @@ public final class Store {
 
     public List<Models.WatchRow> watchesOf(UUID player) throws Exception {
         List<Models.WatchRow> out = new ArrayList<>();
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("""
                      SELECT w.kind, w.node_id,
                        COALESCE(c.serial, i.serial) AS serial,
@@ -1620,7 +1620,7 @@ public final class Store {
 
     public long insertIoEvent(String pairCode, int level, long timeMs) throws Exception {
         if (pairCode == null || pairCode.isBlank()) return -1;
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "INSERT INTO link_io_events (pair_code, level, event_time_ms) VALUES (?, ?, ?)",
                      Statement.RETURN_GENERATED_KEYS)) {
@@ -1635,7 +1635,7 @@ public final class Store {
 
     public long maxIoEventId(String pairCode) throws Exception {
         if (pairCode == null || pairCode.isBlank()) return 0;
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "SELECT COALESCE(MAX(id), 0) FROM link_io_events WHERE pair_code=?")) {
             ps.setString(1, pairCode);
@@ -1647,7 +1647,7 @@ public final class Store {
     public List<Models.IoEvent> ioEventsAfter(String pairCode, long afterId) throws Exception {
         List<Models.IoEvent> out = new ArrayList<>();
         if (pairCode == null || pairCode.isBlank()) return out;
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement(
                      "SELECT id, level, event_time_ms FROM link_io_events WHERE pair_code=? AND id>? ORDER BY id ASC")) {
             ps.setString(1, pairCode);
@@ -1661,7 +1661,7 @@ public final class Store {
     }
 
     public void pruneIoEvents(long olderThanMs) throws Exception {
-        try (Connection c = conn;
+        Connection c = conn; try (
              PreparedStatement ps = c.prepareStatement("DELETE FROM link_io_events WHERE event_time_ms<?")) {
             ps.setLong(1, System.currentTimeMillis() - olderThanMs);
             ps.executeUpdate();

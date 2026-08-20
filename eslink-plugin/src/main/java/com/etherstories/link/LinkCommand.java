@@ -24,7 +24,7 @@ public final class LinkCommand implements TabExecutor {
                 return true;
             }
             boolean ok = plugin.reloadLink();
-            sender.sendMessage(ColorUtil.colorize(ok ? "&aESLink 已重载并连上 MySQL" : "&c重载失败，检查 config.yml 的 MySQL"));
+            sender.sendMessage(ColorUtil.colorize(ok ? "&aESLink 已重载并连上 SQLite/Hub" : "&c重载失败，检查 config.yml 的 hub 配置"));
             return true;
         }
         if (args.length > 0 && (args[0].equalsIgnoreCase("version") || args[0].equalsIgnoreCase("ver"))) {

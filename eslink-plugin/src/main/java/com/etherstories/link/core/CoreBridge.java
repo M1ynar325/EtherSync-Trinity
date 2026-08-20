@@ -90,7 +90,9 @@ public final class CoreBridge {
 
             @Override
             public void onPacketReceived(Frame.Packet packet) {
-                dispatchMessage(packet);
+                if (packet.getType() == Frame.Type.SERVER_UPDATE) {
+                    dispatchMessage(packet);
+                }
                 for (HubListener l : hubListeners) l.onHubPacket(packet);
             }
 
@@ -212,7 +214,7 @@ public final class CoreBridge {
                 }
             }
         } catch (Exception e) {
-            System.err.println("[CoreBridge] 消息分发失败: " + e.getMessage());
+            System.err.println("[CoreBridge] 消息分发失败: " + e + " payloadSize=" + packet.getPayload().length);
         }
     }
 
