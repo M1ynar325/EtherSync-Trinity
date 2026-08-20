@@ -311,7 +311,7 @@ public final class ESLinkPlugin extends JavaPlugin {
             try {
                 java.io.DataInputStream dis = new java.io.DataInputStream(new java.io.ByteArrayInputStream(payload));
                 String sc = dis.readUTF(); int count = dis.readInt();
-                getLogger().info("收到 " + fromCode + " 的节点列表: " + count + " 个节点");
+                // 节点列表已同步
                 for (int i = 0; i < count; i++) {
                     String type = dis.readUTF(); String role = dis.readUTF(); int id = dis.readInt();
                     String serial = dis.readUTF(); String pairCode = dis.readUTF();
@@ -330,7 +330,6 @@ public final class ESLinkPlugin extends JavaPlugin {
             }
         });
         core.onMessage(CoreBridge.MSG_NODE_SYNC, (fromCode, msgType, payload) -> {
-            getLogger().info("收到 " + fromCode + " 的节点同步请求，回复本服节点");
             sendNodeSyncResponse(fromCode);
         });
     }
@@ -360,11 +359,18 @@ public final class ESLinkPlugin extends JavaPlugin {
             }
             dos.flush();
             core.sendBusinessMsg(targetCode, CoreBridge.MSG_NODE_SYNC_RESP, bos.toByteArray());
-            getLogger().info("已回复节点列表给 " + targetCode + ": " + (chests.size() + ioNodes.size()) + " 个节点");
         } catch (Exception ignored) {}
     }
 
     private void startTasks() {
+        // 定期节点同步（每 30 秒，不与心跳混在一起）
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+            if (core != null && core.isHubConnected()) {
+                core.sendNodeSync();
+            }
+        }, 600L, 600L);  // 30 秒间隔
+
+
         ensureCore();
         long hb = Math.max(2, getConfig().getLong("heartbeat-seconds", 5)) * 20L;
         long scan = Math.max(1, getConfig().getLong("scan-seconds", 2)) * 20L;
@@ -375,10 +381,6 @@ public final class ESLinkPlugin extends JavaPlugin {
                     rememberServers(store.servers());
                     Compat.publish(this);
                     Compat.refresh(this);
-                    // 定期同步节点列表
-                    if (core != null && core.isHubConnected()) {
-                        core.sendNodeSync();
-                    }
                 }
             } catch (Exception e) {
                 getLogger().warning("心跳失败: " + e.getMessage());
