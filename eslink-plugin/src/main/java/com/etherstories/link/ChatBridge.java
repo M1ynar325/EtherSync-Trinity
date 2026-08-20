@@ -48,8 +48,9 @@ public final class ChatBridge {
                 String fromName = dis.readUTF();
                 String playerName = dis.readUTF();
                 String message = dis.readUTF();
-                String itemKey = dis.readBoolean() ? dis.readUTF() : null;
-                String itemName = dis.readBoolean() ? dis.readUTF() : null;
+                boolean hasItem = dis.readBoolean();
+                String itemKey = hasItem ? dis.readUTF() : null;
+                String itemName = hasItem ? dis.readUTF() : null;
                 int itemAmount = dis.readInt();
                 byte[] itemBlob = null;
                 int blobLen = dis.readInt();
@@ -132,6 +133,8 @@ public final class ChatBridge {
                 if (plugin.store().banned(plugin.serverCode(), p.getUniqueId())) return;
                 plugin.store().insertChat(plugin.serverCode(), plugin.serverName(),
                         p.getUniqueId(), p.getName(), wire, null, null, null, null);
+                sendChatViaHub(plugin.serverCode(), plugin.serverName(), p.getName(), wire,
+                        null, null, null, null);
             } catch (Exception e) {
                 plugin.getLogger().warning("私聊发送失败: " + e.getMessage());
             }
@@ -161,6 +164,8 @@ public final class ChatBridge {
                 if (plugin.store().banned(plugin.serverCode(), p.getUniqueId())) return;
                 plugin.store().insertChat(plugin.serverCode(), plugin.serverName(),
                         p.getUniqueId(), p.getName(), text, itemKey, itemName, itemAmt, itemB64);
+                sendChatViaHub(plugin.serverCode(), plugin.serverName(), p.getName(), text,
+                        itemKey, itemName, itemAmt, itemB64);
             } catch (Exception e) {
                 plugin.getLogger().warning("互通聊天发送失败: " + e.getMessage());
             }

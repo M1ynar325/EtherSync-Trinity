@@ -335,7 +335,13 @@ public final class LinkGui {
         async(() -> {
             List<Models.ChestRow> idle;
             try {
-                idle = plugin.store().idleChests(targetServer, needRole);
+                idle = new java.util.ArrayList<>(plugin.store().idleChests(targetServer, needRole));
+                // 合并远程节点缓存
+                for (Models.ChestRow rc : plugin.remoteChests().values()) {
+                    if (targetServer.equals(rc.serverCode()) && needRole.equals(rc.role())) {
+                        idle.add(rc);
+                    }
+                }
             } catch (Exception e) {
                 sync(() -> plugin.msg(p, "&c读取空闲节点失败"));
                 return;

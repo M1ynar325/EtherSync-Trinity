@@ -328,7 +328,7 @@ public final class Store {
     }
 
     public void deleteServer(String code) throws Exception {
-        try (Connection c = conn) {
+        Connection c = conn; try {
             try (PreparedStatement ps = c.prepareStatement("DELETE FROM link_servers WHERE code=?")) {
                 ps.setString(1, code);
                 ps.executeUpdate();
@@ -345,7 +345,7 @@ public final class Store {
                 ps.setString(1, code);
                 ps.executeUpdate();
             }
-        }
+        } finally { }
     }
 
     private static void fillSerials(Connection c, String table) {
@@ -721,7 +721,7 @@ public final class Store {
     }
 
     private void deleteChestRow(int id) throws Exception {
-        try (Connection c = conn) {
+        Connection c = conn; try {
             try (PreparedStatement w = c.prepareStatement("DELETE FROM link_watch WHERE kind='chest' AND node_id=?")) {
                 w.setInt(1, id);
                 w.executeUpdate();
@@ -730,7 +730,7 @@ public final class Store {
                 ps.setInt(1, id);
                 ps.executeUpdate();
             }
-        }
+        } finally { }
     }
 
     public void setSignFace(int id, String face) throws Exception {
@@ -974,7 +974,7 @@ public final class Store {
     }
 
     public void deleteIo(int id) throws Exception {
-        try (Connection c = conn) {
+        Connection c = conn; try {
             try (PreparedStatement w = c.prepareStatement("DELETE FROM link_watch WHERE kind='io' AND node_id=?")) {
                 w.setInt(1, id);
                 w.executeUpdate();
@@ -983,7 +983,7 @@ public final class Store {
                 ps.setInt(1, id);
                 ps.executeUpdate();
             }
-        }
+        } finally { }
     }
 
     private static Models.IoRow readIo(ResultSet rs) throws Exception {
@@ -1124,7 +1124,7 @@ public final class Store {
         List<String> shas = new ArrayList<>(items.size());
         for (BatchItem it : items) shas.add(rowSha256(it.b64(), it.itemKey(), it.amount(), it.nestedKeys()));
         String batchSha = batchSha256(shas);
-        try (Connection c = conn) {
+        Connection c = conn; try {
             c.setAutoCommit(false);
             try {
                 insertEscrows(c, items);
@@ -1172,7 +1172,7 @@ public final class Store {
             } finally {
                 try { c.setAutoCommit(true); } catch (Exception ignored) {}
             }
-        }
+        } finally { }
     }
 
     /** 旧签名兼容：单行入队，也顺手生成一个 count=1 的批次校验。 */
@@ -1335,7 +1335,7 @@ public final class Store {
 
     public void completeWithBounces(Models.QueueRow source, List<ItemNbt.PackedChild> rejected) throws Exception {
         if (source == null) return;
-        try (Connection c = conn) {
+        Connection c = conn; try {
             c.setAutoCommit(false);
             try {
                 if (rejected != null && !rejected.isEmpty()) {
@@ -1373,7 +1373,7 @@ public final class Store {
             } finally {
                 try { c.setAutoCommit(true); } catch (Exception ignored) {}
             }
-        }
+        } finally { }
     }
 
     public record EscrowClaim(String claimId, Map<UUID, byte[]> payloads) {}
@@ -1383,7 +1383,7 @@ public final class Store {
         String claimId = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
         Map<UUID, byte[]> payloads = new LinkedHashMap<>();
-        try (Connection c = conn) {
+        Connection c = conn; try {
             c.setAutoCommit(false);
             try {
                 for (UUID token : tokens) {
@@ -1426,7 +1426,7 @@ public final class Store {
             } finally {
                 try { c.setAutoCommit(true); } catch (Exception ignored) {}
             }
-        }
+        } finally { }
     }
 
     public void finishEscrows(EscrowClaim claim, boolean delivered) throws Exception {

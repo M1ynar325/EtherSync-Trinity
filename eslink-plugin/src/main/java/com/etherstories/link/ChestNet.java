@@ -692,6 +692,7 @@ public final class ChestNet {
                 }
                 plugin.store().enqueueBatch(plugin.serverCode(), dest.serverCode(), tx.pairCode(),
                         batchItems, batchId);
+                sendBatchViaHub(dest.serverCode(), batchItems, batchId);
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     for (int i = 0; i < prepared.size(); i++) {
                         ItemStack send = prepared.get(i);

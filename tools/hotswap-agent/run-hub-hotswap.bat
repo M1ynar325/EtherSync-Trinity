@@ -1,5 +1,5 @@
 @echo off
-REM 以 HotswapAgent 启动 eslink-core Hub（支持热更新）
+REM Start eslink-core Hub with HotswapAgent
 set "JAVA_HOME=C:\Program Files\Zulu\zulu-21"
 set "PATH=%JAVA_HOME%\bin;%PATH%"
 cd /d D:\ESLink_neoforged\EtherSync-Trinity

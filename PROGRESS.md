@@ -157,6 +157,44 @@ split.circuit_breaker.max_failures = 3
 - 测试 10 验证：超大容器策略拒绝**不触发熔断**
 - 测试 11 验证：熔断冷却后需重新累计 N 次才再次触发
 
+### Step 5 联调修复（2025-04 第三轮）
+
+1. **SQLite 连接生命周期修复**
+   - Store.java 69 处 `try (Connection c = conn; ...)` 会在方法结束关闭唯一连接 → 全部改为局部引用 + 只关 Statement
+   - 另发现 6 处 `try (Connection c = conn)` 单独关闭连接 → 改为 `Connection c = conn; try { ... } finally { }`
+   - 症状：`database connection closed` 刷屏
+
+2. **SQLite 语法迁移收尾**
+   - 内联 `CREATE INDEX` 从 CREATE TABLE 中移出（SQLite 不支持）
+   - `heartbeat/servers/writeIoLevel` 的 `FLOOR(UNIX_TIMESTAMP(NOW(3))*1000)` → `strftime('%s','now')*1000`
+   - 4 处 `ON DUPLICATE KEY UPDATE` → SQLite `ON CONFLICT ... DO UPDATE`
+
+3. **Hub 消息路由修复**
+   - HubServer 只处理 SERVER_HELLO，把 SERVER_UPDATE 当 UNKNOWN_COMMAND 丢弃 → 聊天/通知广播全断
+   - 修复：SERVER_UPDATE 也走 broadcastToOthers
+
+4. **ChestNet Hub 直传激活**
+   - `sendBatchViaHub()` 定义了但从未调用 → 在 enqueueBatch 后补上调用
+
+5. **ChatBridge 修复**
+   - `sendChatViaHub()` 从未被调用 → 补上（公聊/私聊）
+   - Hub 接收端读 2 个布尔但发送端只写 1 个 → 流错位 → 改为 `hasItem` 单布尔
+
+6. **节点发现（配对互通）**
+   - 旧版靠共享 MySQL 看对端箱子 → SQLite 本地化后看不到
+   - 新增 Hub 节点协议：MSG_NODE_REGISTER / UNREGISTER / SYNC / SYNC_RESP
+   - ESLinkPlugin 维护 remoteChests/remoteIoNodes 缓存，连接后自动同步
+   - ChestNet 创建/删除时广播节点变化
+   - LinkGui 配对界面合并本地 + 远程节点
+
+7. **编码修复**
+   - Arc/Youer 启动参数加 `-Dfile.encoding=UTF-8`
+   - bat 加 `chcp 65001` 解决控制台中文乱码
+
+### 已知遗留
+- 配对成功后，对端节点状态更新（pairCode 同步）尚未通过 Hub 广播
+- IoNet 配对同样依赖节点同步（已有协议支持，未接 GUI 验证）
+
 ### Step 5 深入适配（2025-04 第二轮）
 
 1. **ItemCodec ESN1/ESN6 集成**

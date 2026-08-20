@@ -31,6 +31,10 @@ public final class CoreBridge {
     public static final byte MSG_CHAT         = 0x20;  // 聊天消息
     public static final byte MSG_ALERT        = 0x21;  // 通知/警报
     public static final byte MSG_IO_EVENT     = 0x30;  // 红石事件
+    public static final byte MSG_NODE_REGISTER = 0x50;  // 节点注册（创建箱子/红石节点时广播）
+    public static final byte MSG_NODE_UNREGISTER = 0x51; // 节点注销（删除时广播）
+    public static final byte MSG_NODE_SYNC   = 0x52;  // 请求全量节点同步
+    public static final byte MSG_NODE_SYNC_RESP = 0x53; // 节点同步响应
     public static final byte MSG_SERVER_INFO  = 0x40;  // 服务器信息
 
     private final File dataFolder;
@@ -267,7 +271,49 @@ public final class CoreBridge {
     }
 
     /** 内部：打包业务消息并通过 Hub 发送 */
-    private void sendBusinessMsg(String targetCode, byte msgType, byte[] payload) {
+
+    /** 广播节点注册（创建箱子/红石节点时） */
+    public void sendNodeRegister(String serverCode, String type, String role, int id, String serial,
+                                  String pairCode, String world, int x, int y, int z, String ownerName) {
+        if (hubClient == null || !hubClient.isConnected()) return;
+        try {
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            java.io.DataOutputStream dos = new java.io.DataOutputStream(bos);
+            dos.writeUTF(serverCode);
+            dos.writeUTF(type);  // "chest" or "io"
+            dos.writeUTF(role);  // "TX" or "RX"
+            dos.writeInt(id);
+            dos.writeUTF(serial != null ? serial : "");
+            dos.writeUTF(pairCode != null ? pairCode : "");
+            dos.writeUTF(world != null ? world : "");
+            dos.writeInt(x);
+            dos.writeInt(y);
+            dos.writeInt(z);
+            dos.writeUTF(ownerName != null ? ownerName : "");
+            dos.flush();
+            sendBusinessMsg("HUB", MSG_NODE_REGISTER, bos.toByteArray());
+        } catch (Exception e) { /* ignore */ }
+    }
+
+    /** 广播节点注销 */
+    public void sendNodeUnregister(String type, int id) {
+        if (hubClient == null || !hubClient.isConnected()) return;
+        try {
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            java.io.DataOutputStream dos = new java.io.DataOutputStream(bos);
+            dos.writeUTF(type);
+            dos.writeInt(id);
+            dos.flush();
+            sendBusinessMsg("HUB", MSG_NODE_UNREGISTER, bos.toByteArray());
+        } catch (Exception e) { /* ignore */ }
+    }
+
+    /** 发送节点同步请求 */
+    public void sendNodeSync() {
+        sendBusinessMsg("HUB", MSG_NODE_SYNC, new byte[0]);
+    }
+
+    public void sendBusinessMsg(String targetCode, byte msgType, byte[] payload) {
         if (hubClient == null || !hubClient.isConnected()) return;
         try {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();

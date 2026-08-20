@@ -28,6 +28,8 @@ public final class ESLinkPlugin extends JavaPlugin {
     private volatile boolean ioEnabled = true;
     private volatile boolean transportEnabled = true;
     private final Set<String> blockedComponents = ConcurrentHashMap.newKeySet();
+    private final java.util.Map<String, Models.ChestRow> remoteChests = new ConcurrentHashMap<>();
+    private final java.util.Map<String, Models.IoRow> remoteIoNodes = new ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
@@ -190,7 +192,88 @@ public final class ESLinkPlugin extends JavaPlugin {
         if (core != null) {
             core.connectHub(hubHost, hubPort, serverCode(), key.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             getLogger().info("已连接到 Hub: " + hubHost + ":" + hubPort);
+            registerNodeHandlers();
+            // 延迟请求节点同步（等对端也连接完成）
+            Bukkit.getScheduler().runTaskLater(this, () -> core.sendNodeSync(), 60L);
         }
+    }
+
+    private void registerNodeHandlers() {
+        if (core == null) return;
+        core.onMessage(CoreBridge.MSG_NODE_REGISTER, (fromCode, msgType, payload) -> {
+            try {
+                java.io.DataInputStream dis = new java.io.DataInputStream(new java.io.ByteArrayInputStream(payload));
+                String sc = dis.readUTF(); String type = dis.readUTF(); String role = dis.readUTF();
+                int id = dis.readInt(); String serial = dis.readUTF(); String pairCode = dis.readUTF();
+                String world = dis.readUTF(); int x = dis.readInt(); int y = dis.readInt(); int z = dis.readInt();
+                String ownerName = dis.readUTF();
+                if ("chest".equals(type)) {
+                    remoteChests.put(sc + ":" + id, new Models.ChestRow(id, serial, pairCode, sc, role,
+                            world, x, y, z, java.util.UUID.randomUUID(), "idle", ownerName, null, "", 0, null));
+                } else if ("io".equals(type)) {
+                    remoteIoNodes.put(sc + ":" + id, new Models.IoRow(id, serial, pairCode, sc, role,
+                            world, x, y, z, java.util.UUID.randomUUID(), "idle", ownerName, 0, 0, null, 0, 0, null, 0, "normal"));
+                }
+            } catch (Exception ignored) {}
+        });
+        core.onMessage(CoreBridge.MSG_NODE_UNREGISTER, (fromCode, msgType, payload) -> {
+            try {
+                java.io.DataInputStream dis = new java.io.DataInputStream(new java.io.ByteArrayInputStream(payload));
+                String type = dis.readUTF(); int id = dis.readInt();
+                if ("chest".equals(type)) remoteChests.entrySet().removeIf(e -> e.getValue().id() == id);
+                else if ("io".equals(type)) remoteIoNodes.entrySet().removeIf(e -> e.getValue().id() == id);
+            } catch (Exception ignored) {}
+        });
+        core.onMessage(CoreBridge.MSG_NODE_SYNC_RESP, (fromCode, msgType, payload) -> {
+            try {
+                java.io.DataInputStream dis = new java.io.DataInputStream(new java.io.ByteArrayInputStream(payload));
+                String sc = dis.readUTF(); int count = dis.readInt();
+                for (int i = 0; i < count; i++) {
+                    String type = dis.readUTF(); String role = dis.readUTF(); int id = dis.readInt();
+                    String serial = dis.readUTF(); String pairCode = dis.readUTF();
+                    String world = dis.readUTF(); int x = dis.readInt(); int y = dis.readInt(); int z = dis.readInt();
+                    String ownerName = dis.readUTF();
+                    if ("chest".equals(type)) {
+                        remoteChests.put(sc + ":" + id, new Models.ChestRow(id, serial, pairCode, sc, role,
+                                world, x, y, z, java.util.UUID.randomUUID(), "idle", ownerName, null, "", 0, null));
+                    } else if ("io".equals(type)) {
+                        remoteIoNodes.put(sc + ":" + id, new Models.IoRow(id, serial, pairCode, sc, role,
+                                world, x, y, z, java.util.UUID.randomUUID(), "idle", ownerName, 0, 0, null, 0, 0, null, 0, "normal"));
+                    }
+                }
+            } catch (Exception ignored) {}
+        });
+        core.onMessage(CoreBridge.MSG_NODE_SYNC, (fromCode, msgType, payload) -> {
+            sendNodeSyncResponse(fromCode);
+        });
+    }
+
+    private void sendNodeSyncResponse(String targetCode) {
+        if (store == null || !store.ready()) return;
+        try {
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            java.io.DataOutputStream dos = new java.io.DataOutputStream(bos);
+            dos.writeUTF(serverCode());
+            java.util.List<Models.ChestRow> chests = store.chestsOn(serverCode());
+            java.util.List<Models.IoRow> ioNodes = store.ioOn(serverCode());
+            dos.writeInt(chests.size() + ioNodes.size());
+            for (Models.ChestRow c : chests) {
+                dos.writeUTF("chest"); dos.writeUTF(c.role()); dos.writeInt(c.id());
+                dos.writeUTF(c.unit()); dos.writeUTF(c.pairCode() != null ? c.pairCode() : "");
+                dos.writeUTF(c.world() != null ? c.world() : "");
+                dos.writeInt(c.x()); dos.writeInt(c.y()); dos.writeInt(c.z());
+                dos.writeUTF(c.ownerName() != null ? c.ownerName() : "");
+            }
+            for (Models.IoRow io : ioNodes) {
+                dos.writeUTF("io"); dos.writeUTF(io.role()); dos.writeInt(io.id());
+                dos.writeUTF(io.unit()); dos.writeUTF(io.pairCode() != null ? io.pairCode() : "");
+                dos.writeUTF(io.world() != null ? io.world() : "");
+                dos.writeInt(io.x()); dos.writeInt(io.y()); dos.writeInt(io.z());
+                dos.writeUTF(io.ownerName() != null ? io.ownerName() : "");
+            }
+            dos.flush();
+            core.sendBusinessMsg(targetCode, CoreBridge.MSG_NODE_SYNC_RESP, bos.toByteArray());
+        } catch (Exception ignored) {}
     }
 
     private void startTasks() {
@@ -410,6 +493,22 @@ public final class ESLinkPlugin extends JavaPlugin {
     public Store store() { return store; }
 
     public CoreBridge core() { return core; }
+
+    public java.util.Map<String, Models.ChestRow> remoteChests() { return remoteChests; }
+    public java.util.Map<String, Models.IoRow> remoteIoNodes() { return remoteIoNodes; }
+
+    public void addRemoteChest(Models.ChestRow row) {
+        remoteChests.put(row.serverCode() + ":" + row.id(), row);
+    }
+    public void removeRemoteChest(String serverCode, int id) {
+        remoteChests.remove(serverCode + ":" + id);
+    }
+    public void addRemoteIo(Models.IoRow row) {
+        remoteIoNodes.put(row.serverCode() + ":" + row.id(), row);
+    }
+    public void removeRemoteIo(String serverCode, int id) {
+        remoteIoNodes.remove(serverCode + ":" + id);
+    }
     public VaultHook vault() {
         if (vault == null) vault = new VaultHook();
         return vault;

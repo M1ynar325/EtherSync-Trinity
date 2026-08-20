@@ -328,6 +328,10 @@ class HubServer(
             Frame.Type.SERVER_HELLO -> {
                 broadcastToOthers(fromCode, Frame.Type.SERVER_HELLO, payload)
             }
+            Frame.Type.SERVER_UPDATE -> {
+                // 业务消息广播（聊天/通知等 targetCode="HUB" 的消息）
+                broadcastToOthers(fromCode, Frame.Type.SERVER_UPDATE, payload)
+            }
             else -> {
                 val errorPayload = "UNKNOWN_COMMAND".toByteArray(Charsets.UTF_8)
                 val errorPacket = Frame.encode(Frame.Type.ERROR, errorPayload, secretKey)
