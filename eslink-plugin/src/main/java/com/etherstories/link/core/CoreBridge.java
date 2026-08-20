@@ -292,6 +292,7 @@ public final class CoreBridge {
             dos.writeUTF(ownerName != null ? ownerName : "");
             dos.flush();
             sendBusinessMsg("HUB", MSG_NODE_REGISTER, bos.toByteArray());
+            System.out.println("[CoreBridge] 广播节点注册: " + type + " " + id + " " + role);
         } catch (Exception e) { /* ignore */ }
     }
 
@@ -310,6 +311,7 @@ public final class CoreBridge {
 
     /** 发送节点同步请求 */
     public void sendNodeSync() {
+        System.out.println("[CoreBridge] 发送节点同步请求");
         sendBusinessMsg("HUB", MSG_NODE_SYNC, new byte[0]);
     }
 

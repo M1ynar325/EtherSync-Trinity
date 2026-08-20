@@ -194,11 +194,8 @@ public final class ESLinkPlugin extends JavaPlugin {
             getLogger().info("已连接到 Hub: " + hubHost + ":" + hubPort);
             registerNodeHandlers();
             registerHubServerListener();
-            // 延迟请求节点同步和服务器列表（等对端也连接完成）
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                core.sendNodeSync();
-                requestServerList();
-            }, 60L);
+            // 延迟请求服务器列表（节点同步在 onHubConnected 中触发）
+            Bukkit.getScheduler().runTaskLater(this, this::requestServerList, 60L);
         }
     }
 
@@ -207,8 +204,9 @@ public final class ESLinkPlugin extends JavaPlugin {
         core.addHubListener(new CoreBridge.HubListener() {
             @Override
             public void onHubConnected() {
-                // 连接成功后请求服务器列表
+                // 连接成功后请求服务器列表和节点同步
                 requestServerList();
+                Bukkit.getScheduler().runTaskLater(ESLinkPlugin.this, () -> core.sendNodeSync(), 40L);
             }
             @Override
             public void onHubPacket(com.etherstories.eslink.core.protocol.Frame.Packet packet) {
@@ -313,6 +311,7 @@ public final class ESLinkPlugin extends JavaPlugin {
             try {
                 java.io.DataInputStream dis = new java.io.DataInputStream(new java.io.ByteArrayInputStream(payload));
                 String sc = dis.readUTF(); int count = dis.readInt();
+                getLogger().info("收到 " + fromCode + " 的节点列表: " + count + " 个节点");
                 for (int i = 0; i < count; i++) {
                     String type = dis.readUTF(); String role = dis.readUTF(); int id = dis.readInt();
                     String serial = dis.readUTF(); String pairCode = dis.readUTF();
@@ -326,9 +325,12 @@ public final class ESLinkPlugin extends JavaPlugin {
                                 world, x, y, z, java.util.UUID.randomUUID(), "idle", ownerName, 0, 0, null, 0, 0, null, 0, "normal"));
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                getLogger().warning("解析节点列表失败: " + e.getMessage());
+            }
         });
         core.onMessage(CoreBridge.MSG_NODE_SYNC, (fromCode, msgType, payload) -> {
+            getLogger().info("收到 " + fromCode + " 的节点同步请求，回复本服节点");
             sendNodeSyncResponse(fromCode);
         });
     }
@@ -358,6 +360,7 @@ public final class ESLinkPlugin extends JavaPlugin {
             }
             dos.flush();
             core.sendBusinessMsg(targetCode, CoreBridge.MSG_NODE_SYNC_RESP, bos.toByteArray());
+            getLogger().info("已回复节点列表给 " + targetCode + ": " + (chests.size() + ioNodes.size()) + " 个节点");
         } catch (Exception ignored) {}
     }
 
@@ -372,6 +375,10 @@ public final class ESLinkPlugin extends JavaPlugin {
                     rememberServers(store.servers());
                     Compat.publish(this);
                     Compat.refresh(this);
+                    // 定期同步节点列表
+                    if (core != null && core.isHubConnected()) {
+                        core.sendNodeSync();
+                    }
                 }
             } catch (Exception e) {
                 getLogger().warning("心跳失败: " + e.getMessage());
