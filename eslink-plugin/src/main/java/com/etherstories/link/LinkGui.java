@@ -288,7 +288,17 @@ public final class LinkGui {
         async(() -> {
             List<Models.ServerRow> servers;
             try {
-                servers = plugin.store().servers();
+                servers = new java.util.ArrayList<>(plugin.store().servers());
+                // 合并 Hub 发现的远程服务器
+                for (Models.ServerRow s : plugin.serverCache().values()) {
+                    if (s.code() != null && !s.code().equalsIgnoreCase(plugin.serverCode())) {
+                        boolean found = false;
+                        for (Models.ServerRow local : servers) {
+                            if (s.code().equalsIgnoreCase(local.code())) { found = true; break; }
+                        }
+                        if (!found) servers.add(s);
+                    }
+                }
             } catch (Exception e) {
                 sync(() -> plugin.msg(p, "&c读服务器失败"));
                 return;

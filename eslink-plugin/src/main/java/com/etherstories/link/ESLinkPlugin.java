@@ -585,6 +585,7 @@ public final class ESLinkPlugin extends JavaPlugin {
     public Store store() { return store; }
 
     public CoreBridge core() { return core; }
+    public java.util.Map<String, Models.ServerRow> serverCache() { return serverCache; }
 
     public java.util.Map<String, Models.ChestRow> remoteChests() { return remoteChests; }
     public java.util.Map<String, Models.IoRow> remoteIoNodes() { return remoteIoNodes; }
