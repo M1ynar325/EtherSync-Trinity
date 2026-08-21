@@ -56,6 +56,7 @@ public final class AlertNet {
             try {
                 plugin.store().insertAlert("listing", plugin.serverCode(), plugin.serverName(),
                         seller.getName(), detail);
+                sendAlertViaHub("listing", plugin.serverName(), seller.getName(), detail);
             } catch (Exception e) {
                 plugin.getLogger().warning("上架通知写入失败: " + e.getMessage());
             }
@@ -124,6 +125,7 @@ public final class AlertNet {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 plugin.store().insertAlert("node", plugin.serverCode(), plugin.serverName(), box.unit(), detail);
+                sendAlertViaHub("node", plugin.serverName(), box.unit(), detail);
                 List<UUID> who = plugin.store().watchers(kind, box.id(), pair);
                 Bukkit.getScheduler().runTask(plugin, () -> tell(who, box.unit(), why, plugin.serverName()));
             } catch (Exception e) {

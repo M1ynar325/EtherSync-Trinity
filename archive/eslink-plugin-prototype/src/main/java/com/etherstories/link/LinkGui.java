@@ -396,7 +396,13 @@ public final class LinkGui {
         async(() -> {
             List<Models.IoRow> idle;
             try {
-                idle = plugin.store().idleIo(targetServer, needRole);
+                idle = new java.util.ArrayList<>(plugin.store().idleIo(targetServer, needRole));
+                // 合并远程 IO 节点缓存
+                for (Models.IoRow ri : plugin.remoteIoNodes().values()) {
+                    if (targetServer.equals(ri.serverCode()) && needRole.equals(ri.role())) {
+                        idle.add(ri);
+                    }
+                }
             } catch (Exception e) {
                 sync(() -> plugin.msg(p, "&c读取空闲红石节点失败"));
                 return;
@@ -452,12 +458,32 @@ public final class LinkGui {
                             break;
                         }
                     }
+                    // 也搜索远程 IO 节点缓存
+                    if (remoteId == 0) {
+                        for (Models.IoRow n : plugin.remoteIoNodes().values()) {
+                            if (unit.equalsIgnoreCase(n.unit()) && need.equals(n.role())) {
+                                remoteId = n.id();
+                                remoteServer = n.serverCode();
+                                break;
+                            }
+                        }
+                    }
                 } else {
                     for (Models.ChestRow c : plugin.store().idleChestsRole(need)) {
                         if (unit.equalsIgnoreCase(c.unit())) {
                             remoteId = c.id();
                             remoteServer = c.serverCode();
                             break;
+                        }
+                    }
+                    // 也搜索远程 Chest 节点缓存
+                    if (remoteId == 0) {
+                        for (Models.ChestRow c : plugin.remoteChests().values()) {
+                            if (unit.equalsIgnoreCase(c.unit()) && need.equals(c.role())) {
+                                remoteId = c.id();
+                                remoteServer = c.serverCode();
+                                break;
+                            }
                         }
                     }
                 }

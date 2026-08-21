@@ -282,47 +282,49 @@ java -jar target/eslink-core-0.1.0.jar → 存储层测试通过 + 序列化层 
 
 ---
 
-## 项目结构
+## 项目结构（2025-04 第四轮 归档后）
 
 ```
 D:\ESLink_neoforged\EtherSync-Trinity\
 ├── PROGRESS.md                         # 本文件
 ├── README.md                           # 项目简介
-├── 架构方案.txt                          # 架构设计文档
-├── pom.xml                             # 旧版插件 Maven 构建（保留兼容）
 ├── LICENSE
-├── src/main/java/.../                  # 旧版 Paper 插件（40+ 文件，保留兼容）
+├── .github/                            # CI 配置
 │
-├── eslink-core/                        # 独立核心进程
+├── eslink-core/                        # 唯一保留的活跃模块（独立核心进程）
 │   ├── pom.xml
-│   └── src/main/kotlin/...
+│   └── src/main/kotlin/com/etherstories/eslink/core/
+│       ├── Main.kt                     # 入口 + 功能测试
+│       ├── model/
+│       │   ├── Models.kt               # 数据模型（ServerRow, ChestRow, IoRow 等）
+│       │   ├── Units.kt                # 序列号生成器（6 位字母+数字）
+│       │   ├── ColorUtil.kt            # 颜色工具（纯字符串，无 Minecraft 依赖）
+│       │   ├── Reflect.kt              # 反射缓存工具
+│       │   └── LinkLog.kt              # 环形缓冲区日志（无 Bukkit 依赖）
+│       ├── protocol/                   # Hub 通信协议
+│       │   ├── Frame.kt               # 二进制帧格式（magic 0x4553, CRC32, HMAC-SHA256）
+│       │   ├── ProtocolClient.kt       # TCP 客户端（连接管理、心跳、重连、鉴权）
+│       │   └── HubServer.kt           # Hub 服务端（鉴权、路由、中继转发）
+│       ├── serialization/              # 物品序列化
+│       │   ├── SerialFormat.kt        # ESN1/ESN6 格式定义 + 编解码
+│       │   ├── SplitConfig.kt         # 拆包配置 + 白名单 + 熔断器
+│       │   └── SerializationService.kt  # 编排层（格式选择、回退、队列封装）
+│       └── storage/
+│           └── Storage.kt              # SQLite 存储（6 张表）
 │
-└── eslink-plugin/                      # Paper 插件（新版，调用 eslink-core）
+└── archive/eslink-plugin-prototype/     # 已归档的插件原型（参考实现，不再投入修复）
     ├── pom.xml
-    └── src/main/java/...
-    ├── pom.xml                         # Kotlin + SQLite 构建
-    └── src/main/kotlin/
-        └── com/etherstories/eslink/core/
-            ├── Main.kt                 # 入口 + 功能测试
-            └── model/
-            │   ├── Models.kt           # 数据模型（ServerRow, ChestRow, IoRow 等）
-            │   ├── Units.kt            # 序列号生成器（6 位字母+数字）
-            │   ├── ColorUtil.kt        # 颜色工具（纯字符串，无 Minecraft 依赖）
-            │   ├── Reflect.kt          # 反射缓存工具
-            │   └── LinkLog.kt          # 环形缓冲区日志（无 Bukkit 依赖）
-            ├── protocol/               # Hub 通信协议
-            │   ├── Frame.kt           # 二进制帧格式（magic 0x4553, CRC32, HMAC-SHA256）
-            │   ├── ProtocolClient.kt   # TCP 客户端（连接管理、心跳、重连、鉴权）
-            │   └── HubServer.kt       # Hub 服务端（鉴权、路由、中继转发）
-            ├── serialization/          # 物品序列化
-            │   ├── SerialFormat.kt    # ESN1/ESN6 格式定义 + 编解码
-            │   ├── SplitConfig.kt     # 拆包配置 + 白名单 + 熔断器
-            │   └── SerializationService.kt  # 编排层（格式选择、回退、队列封装）
-            └── storage/
-                └── Storage.kt          # SQLite 存储（6 张表）
+    ├── src/main/java/com/etherstories/link/
+    │   ├── core/CoreBridge.java        # 桥接层（消息路由、Hub 连接）
+    │   ├── ESLinkPlugin.java           # 插件主类
+    │   ├── Store.java                  # SQLite 存储（从 MySQL 迁移）
+    │   ├── ChestNet.java / ChatBridge.java / AlertNet.java / IoNet.java
+    │   ├── LinkGui.java                # GUI 配对界面
+    │   ├── ItemCodec.java / ItemNbt.java / NestedItems.java  # 物品编码
+    │   └── ...（40+ 文件）
+    ├── src/main/resources/             # plugin.yml / config.yml
+    └── tools/                          # hotswap-agent 部署工具
 ```
-
----
 
 ## 已确认的架构决策
 
@@ -376,3 +378,59 @@ D:\ESLink_neoforged\EtherSync-Trinity\
 ## 下一轮对话建议开场
 
 > "继续 ESLink-Trinity 项目。当前已完成 Step 1-5（含深入适配），ItemCodec 已集成 ESN1/ESN6，ChestNet/ChatBridge/AlertNet 已增加 Hub 直传路径，CoreBridge 消息路由已就绪。详见 PROGRESS.md。继续 Step 5 剩余：IoNet 红石事件改为 Hub 通信，或开始 Step 6 模组开发。"
+
+---
+
+## 2025-04 第四轮：全量程序正确性审查 + 6 项 Bug 修复
+
+### 审查范围
+
+按 PROGRESS.md 所述逐项验证了 eslink-core 全部 Kotlin 文件与 eslink-plugin 关键 Java 文件（ESLinkPlugin/CoreBridge/Store/ChestNet/ChatBridge/AlertNet/IoNet/LinkGui/ItemCodec）。
+
+### 已验证修复（18 项）
+
+PROGRESS.md 中声称已修复的问题全部确认属实，包括：
+- Storage.kt `connect()` 连接生命周期
+- Frame.kt `ERROR(0xFF.toByte())` 与 `Byte xor Byte`
+- ProtocolClient.kt 补 `SocketException` import
+- Main.kt `optionalArgValue()`
+- Store.java 75 处连接生命周期修复（grep 确认 0 处 `try (Connection c = conn`）
+- HubServer SERVER_UPDATE 路由
+- ChestNet/ChatBridge Hub 直传调用补上
+- ChatBridge hasItem 单布尔流对齐
+- SerialFormat/SplitConfig/SerializationService 全部 8 项复查修复
+- 两个模块 `mvn compile` 通过
+
+### 本轮发现并修复的 6 项 Bug
+
+| 级别 | 文件 | 问题 | 修复 |
+|------|------|------|------|
+| 🔴 | `ESLinkPlugin.java` | `rememberServers()` 每 5 秒心跳 `serverCache.clear()`，把 Hub 发现的远程服务器全部清掉（互通大厅看不到对方服务器的根因） | 移除 clear，只更新本地已知条目，保留 Hub 发现缓存 |
+| 🔴 | `AlertNet.java` | `sendAlertViaHub()` 定义但从未调用，AlertNet Hub 广播完全不生效 | `listingLocal()` 和 `nodeFault()` 均补上调用 |
+| 🔴 | `ChestNet.java` / `IoNet.java` | `CoreBridge.sendNodeRegister()/sendNodeUnregister()` 定义但从未调用，节点创建/删除不广播 | ChestNet/IoNet 的 setup/unlink 均补上广播调用 |
+| 🔴 | `LinkGui.java` | `openPairIo()` 未合并 `remoteIoNodes`，红石配对界面看不到远程节点 | 仿照 openPairChests 补上合并 |
+| 🔴 | `LinkGui.java` | `tryPairUnit()` 只搜本地 SQLite，远程节点 UNIT 无法配对 | 本地无果后 fallback 搜索 remoteChests/remoteIoNodes |
+| 🟡 | `ChestNet.java` | Hub 直传 `deliverHub()` 只取第一个 RX，不按 pairCode 匹配 | sendBatchViaHub 消息增加 pairCode 字段，deliverHub 优先按 pairCode 匹配，兜底第一个可用 RX |
+
+### 审查结论：代码结构问题
+
+以上修复让现有功能路径基本正确，但暴露出插件层架构性缺陷：
+
+1. **死代码反复出现**：`sendAlertViaHub`、`sendNodeRegister`、`sendNodeUnregister` 都是"写了没接"的典型。每次都是方法定义完整、调用点缺失，说明 CoreBridge 与业务类之间缺少统一的消息收发编排，靠手工在多个类里接线，漏接是必然。
+2. **双轨数据流并存**：ChestNet/ChatBridge/AlertNet 同时走"本地 SQLite 轮询"和"Hub 直传"两条路径，接收端可能出现重复投递（队列 + Hub 各投一次）。deliverHub 投递后没有和本地队列的 delivered 状态对账。
+3. **状态缓存没有单一所有者**：`serverCache` 同时被心跳任务、Hub 处理器、GUI 读取三个方向写入，缺少读写规则，才出现 clear 覆盖 Hub 发现结果。
+4. **IoNet 集成半成品**：事件回放已有 Hub 路径，但节点发现/配对 GUI/广播注册均未完成。
+5. **CoreBridge 是薄转发层而非编排层**：消息注册/分发有，但发送端没有强制统一入口，导致各业务类各自拼 payload、各自判断是否发送。
+6. **eslink-plugin 与旧版 src/main/java 并存**：两套插件代码同时存在，公共 API 靠复制（Units/Models/ColorUtil 等有 core 版和插件版两份），维护成本高。
+
+### 架构改进方向（若继续）
+
+- 在 CoreBridge 中建立**唯一消息出口**：所有业务消息必须通过 CoreBridge 的 send 方法发出，禁止业务类直接接触 ProtocolClient。
+- 接收端采用**事件总线**：CoreBridge 收到 Hub 包后只做解码和路由，业务类注册 handler；每条业务消息要有唯一的处理路径（Hub 直传优先，本地 SQLite 队列降级为离线缓存）。
+- `serverCache`/`remoteChests`/`remoteIoNodes` 收敛到 CoreBridge 或一个专门的 `RemoteRegistry` 类统一管理，心跳只更新本地服务器条目，不整体 clear。
+- 删除或冻结旧版 `src/main/java`，避免双份代码继续漂移。
+- IoNet 补齐与 ChestNet 对称的节点注册/注销/GUI 合并。
+
+### 建议：分支去留
+
+见会话对话中的评估。

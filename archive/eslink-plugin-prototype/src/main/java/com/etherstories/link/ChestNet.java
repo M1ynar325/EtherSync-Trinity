@@ -240,6 +240,12 @@ public final class ChestNet {
                     plugin.store().setWatch(p.getUniqueId(), p.getName(), "chest", id, true);
                 } catch (Exception ignored) {
                 }
+                  // 通过 Hub 广播节点注册
+                  CoreBridge cb = plugin.core();
+                  if (cb != null && row != null) {
+                      cb.sendNodeRegister(plugin.serverCode(), "chest", role, id, row.unit(),
+                              row.pairCode(), chest.getWorld().getName(), chest.getX(), chest.getY(), chest.getZ(), p.getName());
+                  }
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     plugin.markRxNode(chest, role.equals("RX"));
                     if (row != null) refreshSign(row);
@@ -291,6 +297,11 @@ public final class ChestNet {
                 }
                 plugin.store().deleteChest(found.id());
                 signSnap.remove(found.id());
+                // 通过 Hub 广播节点注销
+                CoreBridge cb = plugin.core();
+                if (cb != null) {
+                    cb.sendNodeUnregister("chest", found.id());
+                }
                 Models.ChestRow row = found;
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     plugin.markRxNode(block(row), false);
@@ -692,7 +703,7 @@ public final class ChestNet {
                 }
                 plugin.store().enqueueBatch(plugin.serverCode(), dest.serverCode(), tx.pairCode(),
                         batchItems, batchId);
-                sendBatchViaHub(dest.serverCode(), batchItems, batchId);
+                sendBatchViaHub(dest.serverCode(), tx.pairCode(), batchItems, batchId);
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     for (int i = 0; i < prepared.size(); i++) {
                         ItemStack send = prepared.get(i);
@@ -1250,13 +1261,14 @@ public final class ChestNet {
 
     // ── Hub direct delivery ──
 
-    private void sendBatchViaHub(String targetCode, List<Store.BatchItem> items, String batchId) {
+    private void sendBatchViaHub(String targetCode, String pairCode, List<Store.BatchItem> items, String batchId) {
         CoreBridge core = plugin.core();
         if (core == null || !core.isHubConnected()) return;
         try {
             java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
             java.io.DataOutputStream dos = new java.io.DataOutputStream(bos);
             dos.writeUTF(batchId);
+            dos.writeUTF(pairCode != null ? pairCode : "");
             dos.writeInt(items.size());
             for (Store.BatchItem item : items) {
                 dos.writeUTF(item.itemKey());
@@ -1280,6 +1292,8 @@ public final class ChestNet {
         try {
             java.io.DataInputStream dis = new java.io.DataInputStream(new java.io.ByteArrayInputStream(payload));
             String batchId = dis.readUTF();
+            String pairCode = dis.readUTF();
+            if (pairCode == null || pairCode.isEmpty()) pairCode = "";
             int count = dis.readInt();
             List<Store.BatchItem> items = new ArrayList<>();
             for (int i = 0; i < count; i++) {
@@ -1297,13 +1311,17 @@ public final class ChestNet {
             for (Store.BatchItem item : items) {
                 List<Models.ChestRow> rxChests = plugin.store().chestsOn(plugin.serverCode());
                 Models.ChestRow rx = null;
+                // 优先匹配 pairCode，其次取第一个可用 RX
                 for (Models.ChestRow c : rxChests) {
                     if ("RX".equals(c.role()) && !"paused".equals(c.status())) {
-                        rx = c; break;
+                        if (!pairCode.isEmpty() && pairCode.equals(c.pairCode())) {
+                            rx = c; break;
+                        }
+                        if (rx == null) rx = c;
                     }
                 }
                 if (rx == null) {
-                    plugin.store().enqueue(fromCode, plugin.serverCode(), "",
+                    plugin.store().enqueue(fromCode, plugin.serverCode(), pairCode,
                         item.itemKey(), item.itemName(), item.amount(),
                         item.b64(), item.nestedKeys(), item.returnSlots(), null, null);
                     continue;

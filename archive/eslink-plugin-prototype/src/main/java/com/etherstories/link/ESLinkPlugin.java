@@ -478,7 +478,7 @@ public final class ESLinkPlugin extends JavaPlugin {
     }
 
     public void rememberServers(List<Models.ServerRow> rows) {
-        serverCache.clear();
+        // 只更新本地已知的服务器信息，不清空 Hub 发现的远程服务器
         if (rows == null) return;
         for (Models.ServerRow s : rows) {
             if (s.code() != null) serverCache.put(s.code().toUpperCase(Locale.ROOT), s);

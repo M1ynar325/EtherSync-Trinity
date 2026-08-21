@@ -376,6 +376,12 @@ public final class IoNet {
                     plugin.store().setWatch(p.getUniqueId(), p.getName(), "io", id, true);
                 } catch (Exception ignored) {
                 }
+                  // 通过 Hub 广播节点注册
+                  CoreBridge cb = plugin.core();
+                  if (cb != null && row != null) {
+                      cb.sendNodeRegister(plugin.serverCode(), "io", role, id, row.unit(),
+                              row.pairCode(), node.getWorld().getName(), node.getX(), node.getY(), node.getZ(), p.getName());
+                  }
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     if ("RX".equals(role)) {
                         hold.remove(id);
@@ -428,6 +434,11 @@ public final class IoNet {
                 }
                 plugin.store().deleteIo(row.id());
                 forget(row.id());
+                // 通过 Hub 广播节点注销
+                CoreBridge cb = plugin.core();
+                if (cb != null) {
+                    cb.sendNodeUnregister("io", row.id());
+                }
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     clearOut(node);
                     Sign sign = ChestListener.findSign(node);
