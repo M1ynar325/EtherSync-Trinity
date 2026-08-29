@@ -24,10 +24,7 @@ public final class LinkCommand implements TabExecutor {
                 sender.sendMessage(ColorUtil.colorize("&c没有权限"));
                 return true;
             }
-            boolean ok = plugin.reloadLink();
-            sender.sendMessage(ColorUtil.colorize(ok
-                    ? "&bESLink &7» &f已重载配置并重新连接。"
-                    : "&bESLink &7» &c重载失败，请检查 config.yml 中的 MySQL。"));
+            plugin.reloadLinkAsync(sender);
             return true;
         }
         if (args.length > 0 && (args[0].equalsIgnoreCase("pinreset") || args[0].equalsIgnoreCase("walletreset"))) {

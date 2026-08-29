@@ -39,7 +39,7 @@ public final class Store {
         hc.setMaximumPoolSize(4);
         hc.setMinimumIdle(0);
         hc.setPoolName("ESLink");
-        hc.setConnectionTimeout(8000);
+        hc.setConnectionTimeout(3000);
         try {
             ds = new HikariDataSource(hc);
             try (Connection c = ds.getConnection()) {

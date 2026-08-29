@@ -174,8 +174,12 @@ public class ESLinkPlugin extends JavaPlugin {
         if (store != null) store.close();
     }
 
-    public boolean reloadLink() {
+    /**
+     * 重载配置并异步连接 MySQL，避免主线程被数据库连接超时阻塞。
+     */
+    public void reloadLinkAsync(org.bukkit.command.CommandSender sender) {
         try {
+            sender.sendMessage(ColorUtil.colorize("&bESLink &7» &f正在重载并连接 MySQL..."));
             Bukkit.getScheduler().cancelTasks(this);
             reloadConfig();
             ConfigUpdater.migrate(this);
@@ -190,13 +194,20 @@ public class ESLinkPlugin extends JavaPlugin {
             if (markets != null) markets.reload();
             chat.resetCursor();
             if (alerts != null) alerts.resetCursor();
-            boolean ok = store.connect();
-            startTasks();
-            return ok;
+
+            Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+                boolean ok = store.connect();
+                Bukkit.getScheduler().runTask(this, () -> {
+                    if (ok) startTasks();
+                    sender.sendMessage(ColorUtil.colorize(ok
+                            ? "&bESLink &7» &a已重载配置并重新连接。"
+                            : "&bESLink &7» &c重载失败，请检查 config.yml 中的 MySQL。"));
+                });
+            });
         } catch (Throwable t) {
             getLogger().severe("reload 失败: " + t.getMessage());
             t.printStackTrace();
-            return false;
+            sender.sendMessage(ColorUtil.colorize("&bESLink &7» &c重载失败，请检查日志。"));
         }
     }
 
