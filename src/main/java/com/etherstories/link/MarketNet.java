@@ -137,7 +137,6 @@ public final class MarketNet {
         defaultId = key;
         plugin.getConfig().set("markets.default", key);
         plugin.saveConfig();
-        reload(); // 让客户端缓存与 config.yml 完全一致
         return null;
     }
 

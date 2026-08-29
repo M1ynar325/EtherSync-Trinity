@@ -410,7 +410,7 @@ public final class LinkCommand implements TabExecutor {
             String id = MarketNet.sanitizeId(args[2]);
             tell(sender, "&a已登记交易所 &f" + id + "&a，重启后仍会保留。");
             if (id.equals(markets.defaultId())) {
-                tell(sender, "&7当前没有默认交易所，已自动设为默认。");
+                tell(sender, "&7已自动设为默认。");
             }
             return;
         }
