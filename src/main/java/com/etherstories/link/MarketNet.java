@@ -131,10 +131,13 @@ public final class MarketNet {
 
     public synchronized String setDefault(String id) {
         String key = sanitizeId(id);
-        if (!clients.containsKey(key)) return "没有代号为 " + key + " 的市场。";
+        if (!clients.containsKey(key)) {
+            return "没有代号为 " + key + " 的市场。可用 /link market list 查看已登记市场。";
+        }
         defaultId = key;
         plugin.getConfig().set("markets.default", key);
         plugin.saveConfig();
+        reload(); // 让客户端缓存与 config.yml 完全一致
         return null;
     }
 
@@ -269,14 +272,17 @@ public final class MarketNet {
     public List<String> describe() {
         List<String> lines = new ArrayList<>();
         if (clients.isEmpty()) {
-            lines.add("未登记独立市场，货单仍使用本服 MySQL。");
+            lines.add("未登记独立交易所，货单仍使用本服 MySQL。");
             return lines;
         }
-        lines.add("默认市场: " + (defaultId.isEmpty() ? "（未设）" : defaultId));
         for (MarketClient c : clients.values()) {
             MarketHub h = c.hub();
-            String st = h.online ? "在线" : "离线";
-            lines.add(h.id + " · " + h.displayName() + " · " + st + " · " + h.url);
+            String st = h.online ? "&a在线" : "&c离线";
+            String mark = h.id.equalsIgnoreCase(defaultId) ? " &e[默认]" : "";
+            String err = (h.online || h.lastError == null || h.lastError.isBlank())
+                    ? "" : " &8(" + h.lastError + ")";
+            lines.add("&f" + h.id + mark + " &8· &7" + h.displayName()
+                    + " &8· " + st + " &8· " + h.url + err);
         }
         return lines;
     }

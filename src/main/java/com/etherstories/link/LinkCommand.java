@@ -373,14 +373,25 @@ public final class LinkCommand implements TabExecutor {
             return;
         }
         plugin.ensureCore();
+        MarketNet markets = plugin.markets();
+
         if (args.length == 1) {
-            tell(sender, "已登记的市场：");
-            for (String line : plugin.markets().describe()) tell(sender, line);
-            tell(sender, "用法：/link market add <代号> <地址> <令牌> [名称]");
-            tell(sender, "/link market remove <代号>  ·  /link market default <代号>");
+            tell(sender, "&8—— 跨服交易所 ——");
+            for (String line : markets.describe()) tell(sender, line);
+            tell(sender, "&8/link market list 查看列表");
+            tell(sender, "&8/link market add <代号> <地址> <令牌> [名称]");
+            tell(sender, "&8/link market remove <代号>");
+            tell(sender, "&8/link market default <代号> 切换服务器默认交易所");
             return;
         }
+
         String sub = args[1].toLowerCase(Locale.ROOT);
+
+        if (sub.equals("list") || sub.equals("ls")) {
+            for (String line : markets.describe()) tell(sender, line);
+            return;
+        }
+
         if (sub.equals("add") || sub.equals("set")) {
             if (args.length < 5) {
                 tell(sender, "用法：/link market add <代号> <地址> <令牌> [名称]");
@@ -391,33 +402,59 @@ public final class LinkCommand implements TabExecutor {
                 if (i > 5) name.append(' ');
                 name.append(args[i]);
             }
-            String err = plugin.markets().add(args[2], args[3], args[4], name.toString());
+            String err = markets.add(args[2], args[3], args[4], name.toString());
             if (err != null) {
-                tell(sender, err);
+                tell(sender, "&c" + err);
                 return;
             }
-            tell(sender, "已登记市场 " + MarketNet.sanitizeId(args[2]) + "，重启后仍会保留。");
+            String id = MarketNet.sanitizeId(args[2]);
+            tell(sender, "&a已登记交易所 &f" + id + "&a，重启后仍会保留。");
+            if (id.equals(markets.defaultId())) {
+                tell(sender, "&7当前没有默认交易所，已自动设为默认。");
+            }
             return;
         }
+
         if (sub.equals("remove") || sub.equals("del") || sub.equals("delete")) {
             if (args.length < 3) {
                 tell(sender, "用法：/link market remove <代号>");
                 return;
             }
-            String err = plugin.markets().remove(args[2]);
-            tell(sender, err == null ? "已移除市场 " + MarketNet.sanitizeId(args[2]) + "。" : err);
+            String err = markets.remove(args[2]);
+            if (err != null) {
+                tell(sender, "&c" + err);
+                return;
+            }
+            tell(sender, "&a已移除交易所 &f" + MarketNet.sanitizeId(args[2]) + "&a。");
+            if (markets.httpEnabled()) {
+                tell(sender, "&7当前默认交易所：&f" + markets.defaultId());
+            } else {
+                tell(sender, "&7已无独立交易所，货单回落到本服 MySQL。");
+            }
             return;
         }
-        if (sub.equals("default") || sub.equals("use")) {
+
+        if (sub.equals("default") || sub.equals("use") || sub.equals("switch")) {
             if (args.length < 3) {
                 tell(sender, "用法：/link market default <代号>");
                 return;
             }
-            String err = plugin.markets().setDefault(args[2]);
-            tell(sender, err == null ? "新玩家默认市场已设为 " + MarketNet.sanitizeId(args[2]) + "。" : err);
+            String err = markets.setDefault(args[2]);
+            if (err != null) {
+                tell(sender, "&c" + err);
+                return;
+            }
+            String id = MarketNet.sanitizeId(args[2]);
+            MarketHub h = markets.hub(id);
+            String st = (h != null && h.online) ? "&a在线" : "&c离线";
+            tell(sender, "&a服务器默认交易所已切换为 &f" + id + " &a（" + st + "&a）");
+            if (h != null && !h.online) {
+                tell(sender, "&c注意：该交易所当前离线，货单操作可能失败。");
+            }
             return;
         }
-        tell(sender, "用法：/link market  |  add  |  remove  |  default");
+
+        tell(sender, "用法：/link market  |  list  |  add  |  remove  |  default");
     }
 
     private void tell(CommandSender sender, String msg) {
@@ -427,9 +464,12 @@ public final class LinkCommand implements TabExecutor {
     private List<String> tabMarket(CommandSender sender, String[] args) {
         if (args.length == 2) {
             String pfx = args[1].toLowerCase(Locale.ROOT);
-            return Stream.of("add", "remove", "default").filter(s -> s.startsWith(pfx)).toList();
+            return Stream.of("list", "add", "remove", "default", "switch")
+                    .filter(s -> s.startsWith(pfx)).toList();
         }
-        if (args.length == 3 && (args[1].equalsIgnoreCase("remove") || args[1].equalsIgnoreCase("default"))) {
+        if (args.length == 3 && (args[1].equalsIgnoreCase("remove")
+                || args[1].equalsIgnoreCase("default")
+                || args[1].equalsIgnoreCase("switch"))) {
             String pfx = args[2].toLowerCase(Locale.ROOT);
             List<String> ids = new ArrayList<>();
             for (MarketHub h : plugin.markets().hubs()) {
