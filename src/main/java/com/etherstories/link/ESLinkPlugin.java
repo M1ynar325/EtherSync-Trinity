@@ -14,7 +14,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class ESLinkPlugin extends JavaPlugin {
+public class ESLinkPlugin extends JavaPlugin {
 
     private Store store;
     private VaultHook vault;
